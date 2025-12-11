@@ -1,7 +1,7 @@
 import json
 from typing import AsyncGenerator
 from google import genai
-from config import GEMINI_API_KEY, UNIO_API_KEY
+from config import LLM_BASE_URL, LLM_API_KEY
 import openai 
 
 #uncomment if you want to use google  genai
@@ -27,26 +27,28 @@ import openai
 
 async def chat_with_model(
     message: str,
-    model: str = 'google:gemini-2.0-flash-lite',
+    # Default model if none provided, though usually controlled by caller
+    model: str = 'gpt-3.5-turbo',
 ) -> AsyncGenerator[str, None]:
     
     
-    unio = openai.Client(
-        base_url="https://unio.onrender.com/v1/api",
-        api_key=UNIO_API_KEY
+    client = openai.AsyncClient(
+        base_url=LLM_BASE_URL,
+        api_key=LLM_API_KEY
     )
     
     messages = [
         {"role": "user", "content": message}
     ]
     
-    response = unio.chat.completions.create(
-        model="google:" + model,
+    # Note: caller is expected to provide the full model name now via config mapping
+    response = await client.chat.completions.create(
+        model=model,
         messages=messages,
         stream=True
     )
     
-    for chunk in response:
+    async for chunk in response:
         yield f'data: {json.dumps({"event": "text-chunk", "data": {"text": chunk.choices[0].delta.content or ""}})}'
     
     yield "data: DONE"

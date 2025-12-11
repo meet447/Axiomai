@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from chat.llm import chat_with_model
 from chat.basic.generate import generate_response
 from chat.expert.generate import generate_response_expert
-from typing import List
+from typing import List, Dict, Any
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -20,7 +20,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     thread_id: int | None = None
     query: str
-    history: List
+    history: List[Dict[str, Any]]
     model: str
     pro_search: bool = False
 
@@ -30,10 +30,11 @@ async def read_root():
 
 @app.post('/chat')
 async def chat_endpoint(payload: ChatRequest):
+    from config import MODEL_FAST, MODEL_POWERFUL, MODEL_HYPER
     model_map = {
-        'fast': 'gemini-2.5-flash',
-        'powerful': 'gemini-2.5-pro',
-        'hyper': 'gemini-2.5-flash-lite'
+        'fast': MODEL_FAST,
+        'powerful': MODEL_POWERFUL,
+        'hyper': MODEL_HYPER
     }
     
     model = model_map.get(payload.model)
