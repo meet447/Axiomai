@@ -229,3 +229,26 @@ Current step to execute: ${current_step}
 THE RESPONSE MUST BE A LIST ['query1', 'query2', 'query3', 'query4'] NOTHING ELSE 
 Your search queries based:
 `;
+
+export const CLARIFICATION_PROMPT = (query: string, history: string) => `\
+You are an expert at identifying ambiguous queries. Your goal is to determine if the user's query is too broad or ambiguous to answer effectively without more information.
+
+User Query: ${query}
+
+Chat History:
+${history}
+
+Instructions:
+1. Analyze the query and history.
+2. If the query is sufficiently clear, return an empty list: []
+3. If the query is ambiguous (e.g., "Tell me about Python" could mean the language or snake), generate 1-3 simple clarifying questions to narrow down the intent.
+4. DO NOT ask questions if the intent is reasonably inferable. Erring on the side of NOT asking is better.
+
+Output format:
+A JSON list of strings.
+Example: ["Do you mean Python the programming language or the snake?", "Are you interested in a specific version?"]
+OR
+[]
+
+Output:
+`;

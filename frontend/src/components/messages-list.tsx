@@ -20,7 +20,7 @@ const MessagesList = ({
   streamingMessage: ChatMessage | null;
   isStreamingMessage: boolean;
   isStreamingProSearch: boolean;
-  onRelatedQuestionSelect: (question: string) => void;
+  onRelatedQuestionSelect: (question: string, answers?: string[]) => void;
 }) => {
   const streamingProResponse = streamingMessage?.agent_response;
   return (
@@ -37,6 +37,9 @@ const MessagesList = ({
               key={index}
               message={message}
               onRelatedQuestionSelect={onRelatedQuestionSelect}
+              isLast={index === messages.length - 1 && !streamingMessage}
+              onClarificationSubmit={onRelatedQuestionSelect}
+              originalQuery={messages[index - 1]?.role === MessageRole.USER ? messages[index - 1].content : ""}
             />
             {index !== messages.length - 1 && <Separator />}
           </>
