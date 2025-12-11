@@ -30,20 +30,23 @@ export async function performSearch(query: string, maxText: number = 7, focusMod
         } else if (SEARCH_PROVIDER === 'tavily' && SEARCH_API_KEY) {
             results = await searchTavily(searchQuery);
         } else {
-            // Fallback to DuckDuckGo HTML (Most reliable free option)
-            results = await searchDuckDuckGoHtml(searchQuery);
+            // Primary Free Strategy: DuckDuckGo Lite (Most robust)
+            results = await searchDuckDuckGoLite(searchQuery);
 
-            // Second fallback if DDG fails?
+            // Fallback: DuckDuckGo HTML (Better snippets, but often blocked)
             if (results.length === 0) {
-                results = await searchGoogleScraper(searchQuery);
+                results = await searchDuckDuckGoHtml(searchQuery);
             }
+
+            // Google Scraper removed due to consistent 429s.
+            // If both DDG methods fail, we return empty results to prompt the agent to rely on its own knowledge or ask clarifying questions.
         }
 
         // Limit results
         // Fetch images using GIS (Google Image Search) fallback if not provided by API
         // For writing/academic modes, maybe skip images or keep them? Let's keep them for now.
         if (images.length === 0 && focusMode !== 'writing') {
-            images = await searchImagesGis(searchQuery);
+            images = await searchImages(searchQuery);
         }
 
         // Limit results
@@ -179,35 +182,47 @@ async function searchGoogleScraper(query: string): Promise<SearchResult[]> {
     }
 }
 
-async function searchImagesGis(query: string): Promise<string[]> {
-    return new Promise((resolve) => {
-        try {
-            // @ts-ignore
-            const gis = require('g-i-s');
-            const opts = {
-                searchTerm: query,
-                queryStringAddition: '&tbs=isz:m', // Medium images
-                filterOutDomains: [
-                    'pinterest.com',
-                    'deviantart.com'
-                ]
-            };
+// Custom Image Scraper with Headers to avoid 429s/Blocking
+async function searchImages(query: string): Promise<string[]> {
+    try {
+        // Try Bing Images first (often easier to scrape than Google)
+        const res = await fetch(`https://www.bing.com/images/search?q=${encodeURIComponent(query)}&first=1`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            }
+        });
 
-            gis(opts, (error: any, results: any[]) => {
-                if (error) {
-                    console.error("GIS error:", error);
-                    resolve([]);
-                    return;
-                }
-                // Extract URLs
-                const imageUrls = results.map(r => r.url).filter(u => u.startsWith('http'));
-                resolve(imageUrls);
-            });
-        } catch (e) {
-            console.error("GIS failed to load or run", e);
-            resolve([]);
+        if (!res.ok) return [];
+
+        const html = await res.text();
+        const images: string[] = [];
+
+        // Bing "murl" regex (Metadata URL)
+        const regex = /"murl":"([^"]+)"/g;
+        let match;
+        while ((match = regex.exec(html)) !== null) {
+            if (images.length < 6) {
+                images.push(match[1]);
+            }
         }
-    });
+
+        // Fallback: simple img tags (thumbnails)
+        if (images.length === 0) {
+            const $ = cheerio.load(html);
+            $('img.mimg').each((i, el) => {
+                const src = $(el).attr('src') || $(el).attr('data-src');
+                if (src && src.startsWith('http')) {
+                    if (images.length < 6) images.push(src);
+                }
+            });
+        }
+
+        return images;
+    } catch (e) {
+        console.error("Image search failed", e);
+        return [];
+    }
 }
 
 export async function fetchAndProcessUrl(url: string): Promise<string> {
@@ -233,5 +248,57 @@ export async function fetchAndProcessUrl(url: string): Promise<string> {
         return text.slice(0, 4000);
     } catch (e) {
         return "";
+    }
+}
+
+async function searchDuckDuckGoLite(query: string): Promise<SearchResult[]> {
+    try {
+        const formData = new URLSearchParams();
+        formData.append('q', query);
+
+        const res = await fetch('https://lite.duckduckgo.com/lite/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+
+        if (!res.ok) return [];
+
+        const html = await res.text();
+        const $ = cheerio.load(html);
+        const results: SearchResult[] = [];
+
+        // Lite has table rows. 
+        // Tricky structure. Usually: 
+        // <tr><td><a href="...">Title</a></td></tr>
+        // <tr><td>Snippet</td></tr>
+
+        const rows = $('table').last().find('tr');
+
+        let currentTitle = '';
+        let currentUrl = '';
+
+        rows.each((i, el) => {
+            const link = $(el).find('a.result-link');
+            if (link.length > 0) {
+                currentTitle = link.text().trim();
+                currentUrl = link.attr('href') || '';
+            } else {
+                const snippet = $(el).find('td.result-snippet').text().trim();
+                if (snippet && currentTitle && currentUrl) {
+                    results.push({ title: currentTitle, url: currentUrl, content: snippet });
+                    currentTitle = '';
+                    currentUrl = '';
+                }
+            }
+        });
+
+        return results;
+    } catch (e) {
+        console.error("DDG Lite search failed", e);
+        return [];
     }
 }

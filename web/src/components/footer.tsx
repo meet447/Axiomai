@@ -11,7 +11,7 @@ export function Footer() {
   useEffect(() => {
     async function checkStatus() {
       try {
-        const res = await fetch("https://axiom-api.onrender.com/", { method: "GET" });
+        const res = await fetch("/api/health", { method: "GET" });
         if (res.status === 200) {
           setStatus("✅ All systems are operational");
         } else {

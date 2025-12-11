@@ -53,7 +53,6 @@ export async function generateRelatedQuestions(
 function parseList(text: string): string[] {
     try {
         let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        // Sometimes models prefix with "related_questions: " or similar depending on prompt
         cleanText = cleanText.replace(/^.*: \s*/, '');
 
         // Try to find a JSON list
@@ -72,12 +71,16 @@ function parseList(text: string): string[] {
                     const parsed = JSON.parse(fixedStr);
                     if (Array.isArray(parsed)) return parsed.map(String);
                 } catch (e2) {
-                    console.error("Failed to parse list with quote fix:", e2);
+                    // console.error("Failed to parse list with quote fix:", e2);
                 }
             }
         }
 
-        // Fallback?
+        // Fallback: Regex extraction for list items "item", 'item'
+        const itemMatches = cleanText.matchAll(/["']([^"']+)["']/g);
+        const items = Array.from(itemMatches, m => m[1]);
+        if (items.length > 0) return items;
+
         return [];
     } catch (e) {
         console.error("Failed to parse list:", e);
