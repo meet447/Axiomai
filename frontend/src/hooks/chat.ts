@@ -48,7 +48,14 @@ const streamChat = async ({
     openWhenHidden: true,
     body: JSON.stringify({ ...request }),
     onmessage: onMessage,
-    onerror: (error) => {},
+    onerror: (error) => {
+      console.error("Stream error:", error);
+      throw error; // Rethrow to stop retry if needed, or handle specifically
+    },
+    onclose: () => {
+      // Stop retry on normal close
+      return;
+    }
   });
 };
 
@@ -188,9 +195,9 @@ export const useChat = () => {
       agent_response:
         state.agent_response !== null
           ? {
-              steps: steps_details.map((step) => step.step),
-              steps_details: steps_details,
-            }
+            steps: steps_details.map((step) => step.step),
+            steps_details: steps_details,
+          }
           : null,
     });
   };
