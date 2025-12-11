@@ -24,14 +24,14 @@ export interface MessageProps {
   isStreaming?: boolean;
 }
 
-const Citation = ({ index, source }: { index: number; source: SearchResult }) => {
+const Citation = memo(({ index, source }: { index: number; source: SearchResult }) => {
   const domain = new URL(source.url).hostname.replace('www.', '');
 
   return (
     <HoverCard>
       <HoverCardTrigger asChild>
         <button className="select-none no-underline inline-flex items-center justify-center align-top ml-0.5" type="button">
-          <span className="relative -top-[0.2rem] h-[1rem] min-w-[1rem] items-center justify-center rounded-full text-center px-1 text-[0.60rem] font-mono bg-muted text-muted-foreground hover:text-primary hover:bg-muted/80 transition-colors">
+          <span className="relative -top-[0.2rem] inline-flex items-center justify-center rounded-full text-center px-1 text-[0.60rem] font-mono bg-muted text-muted-foreground hover:text-primary hover:bg-muted/80 transition-colors">
             {index}
           </span>
         </button>
@@ -56,7 +56,7 @@ const Citation = ({ index, source }: { index: number; source: SearchResult }) =>
       </HoverCardContent>
     </HoverCard>
   );
-};
+});
 
 const Text = ({
   children,
@@ -150,12 +150,9 @@ export const MessageComponent: FC<MessageProps> = ({
 }) => {
   const { content, sources } = message;
 
-  // Preprocess content to replace [1] with <span data-citation="1"></span>
+  // Preprocess content to replace [1] with [1](https://citation.internal/1)
   const processedContent = useMemo(() => {
-    // Replace [1] with a span that we can target in the components map
-    return content.replace(/\[(\d+)\]/g, (_, number) => {
-      return `<span data-citation="${number}"></span>`;
-    });
+    return content.replace(/\[(\d+)\]/g, "[$1](https://citation.internal/$1)");
   }, [content]);
 
   return (
@@ -167,17 +164,16 @@ export const MessageComponent: FC<MessageProps> = ({
           // @ts-ignore
           li: isStreaming ? StreamingListItem : ListItem,
           // @ts-ignore
-          span: ({ node, ...props }) => {
-            // @ts-ignore
-            const indexStr = props['data-citation'];
-            if (indexStr) {
-              const index = parseInt(indexStr as string);
+          a: ({ node, href, children, ...props }) => {
+            if (href?.startsWith("https://citation.internal/")) {
+              const index = parseInt(href.split("/").pop() || "0");
               const source = sources?.find((_, idx) => idx + 1 === index);
               if (source) {
                 return <Citation index={index} source={source} />;
               }
+              return null;
             }
-            return <span {...props} />;
+            return <a href={href} {...props} target="_blank" rel="noopener noreferrer">{children}</a>;
           }
         }}
         rehypePlugins={[rehypeRaw]}
