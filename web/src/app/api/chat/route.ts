@@ -18,6 +18,7 @@ interface ChatRequest {
     model: string;
     pro_search: boolean;
     focusMode: string;
+    agentic: boolean;
 }
 
 function formatContext(results: SearchResult[]): string {
@@ -239,15 +240,124 @@ async function handleExpertMode(
 }
 
 
+
+import { fetchAndProcessUrl } from '@/lib/search';
+import { REACT_AGENT_PROMPT } from '@/lib/agent/prompts';
+
+async function handleAgenticMode(
+    query: string,
+    history: any[],
+    controller: ReadableStreamDefaultController
+) {
+    sendEvent(controller, 'begin-stream', { event_type: 'begin-stream', query });
+
+    let currentQuery = query;
+    // Optional: Rephrase logic here if needed (skipping for brevity)
+
+    let steps = 0;
+    const maxSteps = 10;
+    let agentHistory: string[] = [];
+    let finalAnswer = "";
+
+    // 0. Generate Initial Plan (Intelligence Boost)
+    try {
+        const plan = await generatePlan(currentQuery);
+        const planText = plan.map(p => `${p.id + 1}. ${p.step}`).join('\n');
+        agentHistory.push(`**SUGGESTED PLAN:**\n${planText}\n(You can follow this plan or adapt it based on new findings.)`);
+    } catch (e) {
+        console.warn("Failed to generate initial plan for agent", e);
+    }
+
+    const allSources: SearchResult[] = [];
+
+    while (steps < maxSteps) {
+        await new Promise(r => setTimeout(r, 2000)); // Rate limit protection
+        steps++;
+        const historyLog = agentHistory.join('\n');
+
+        // 1. Think / Decide Action
+        const prompt = REACT_AGENT_PROMPT(currentQuery, historyLog);
+        const completion = await openai.chat.completions.create({
+            model: MODELS.powerful, // Use powerful model for reasoning
+            messages: [{ role: 'user', content: prompt }],
+            stream: false,
+            response_format: { type: "json_object" } // Force JSON if supported, or rely on prompt
+        });
+
+        const text = completion.choices[0].message.content || "{}";
+        let action: any = {};
+        try {
+            action = JSON.parse(text);
+        } catch (e) {
+            // regex fallback
+            const match = text.match(/\{[\s\S]*\}/);
+            if (match) action = JSON.parse(match[0]);
+        }
+
+        // 2. Stream Action to UI
+        sendEvent(controller, 'agent-action', { step: steps, action: action });
+
+        // 3. Execute Action
+        if (action.action === 'search') {
+            const q = action.query;
+            const res = await performSearch(q, 4, 'web');
+            const summary = res.results.map(r => `[${r.title}](${r.url}): ${r.content}`).join('\n');
+
+            allSources.push(...res.results);
+            agentHistory.push(`Step ${steps}: Searched for "${q}". Found:\n${summary}`);
+
+            // Send observations to UI? 
+            // Ideally we show the user what we found.
+            // But 'agent-read-results' expects a different format. 
+            // Let's rely on 'agent-action' to show intent, then maybe 'search-results' later?
+            // Actually, let's emit a generic log event if we had one.
+            // For now, the UI will just see the action.
+
+        } else if (action.action === 'visit') {
+            const url = action.url;
+            const content = await fetchAndProcessUrl(url);
+            const snippet = content.slice(0, 1000); // Limit context
+            agentHistory.push(`Step ${steps}: Visited ${url}. Content:\n${snippet}...`);
+
+        } else if (action.action === 'answer') {
+            finalAnswer = action.text;
+            break;
+        } else {
+            agentHistory.push(`Step ${steps}: Invalid action generated. trying again.`);
+        }
+    }
+
+    // 4. Final Response
+    if (!finalAnswer) finalAnswer = "I could not complete the research in time.";
+
+    // Unify sources
+    const uniqueSources = Array.from(new Map(allSources.map(s => [s.url, s])).values());
+    sendEvent(controller, 'search-results', { results: uniqueSources, images: [] });
+
+    // Stream final answer
+    const chunks = finalAnswer.split(/(?=[,.\s])/); // Split by words/punctuation
+    for (const chunk of chunks) {
+        sendEvent(controller, 'text-chunk', { text: chunk });
+        await new Promise(resolve => setTimeout(resolve, 15)); // 15ms delay for typing effect
+    }
+    // sendEvent(controller, 'final-response', { response: finalAnswer }); // Optional, legacy
+
+    const related = await generateRelatedQuestions(currentQuery, finalAnswer);
+    sendEvent(controller, 'related-queries', { related_queries: related });
+    sendEvent(controller, 'stream-end', { thread_id: 125 });
+}
+
 export async function POST(req: NextRequest) {
     try {
         const payload: ChatRequest = await req.json();
-        const { query, history, model, pro_search, focusMode } = payload;
+        const { query, history, model, pro_search, focusMode, agentic } = payload;
 
         const stream = new ReadableStream({
             async start(controller) {
                 try {
-                    if (pro_search) {
+                    if (agentic) {
+                        await handleAgenticMode(query, history, controller);
+                    } else if (pro_search) {
                         await handleExpertMode(query, history, focusMode, controller);
                     } else {
                         await handleBasicMode(query, history, model, focusMode, controller);

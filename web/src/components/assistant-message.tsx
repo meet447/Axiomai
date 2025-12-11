@@ -57,6 +57,22 @@ export const AssistantMessageContent = ({
 
   return (
     <div className="flex flex-col">
+      {message.agent_actions && message.agent_actions.length > 0 && (
+        <Section title="Agent Actions" animate={isStreaming}>
+          <div className="flex flex-col gap-2 mb-4">
+            {message.agent_actions.map((act, i) => (
+              <div key={i} className="text-sm bg-gray-100 dark:bg-neutral-900 border dark:border-neutral-800 p-2 rounded-md flex items-center">
+                <span className="font-bold uppercase text-xs text-indigo-500 min-w-[60px]">
+                  {act.action.action}
+                </span>
+                <span className="ml-2 text-gray-700 dark:text-gray-300 truncate">
+                  {act.action.query ? `"${act.action.query}"` : act.action.url || ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
       <Section title="Answer" animate={isStreaming} streaming={isStreaming}>
         {content ? (
           <MessageComponent message={message} isStreaming={isStreaming} />

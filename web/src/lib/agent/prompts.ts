@@ -192,7 +192,7 @@ Example Query Plan:
 ]
 
 Query: ${query}
-Query Plan (with a final summarize/combine/compare step):
+Query Plan (Respond with the JSON array ONLY):
 `;
 
 export const SEARCH_QUERY_PROMPT = (user_query: string, prev_steps_context: string, current_step: string) => `\
@@ -228,4 +228,38 @@ Current step to execute: ${current_step}
 ---
 THE RESPONSE MUST BE A LIST ['query1', 'query2', 'query3', 'query4'] NOTHING ELSE 
 Your search queries based:
+`;
+
+export const REACT_AGENT_PROMPT = (query: string, history_log: string) => `\
+You are an autonomous research agent. Your goal is to answer the user's query by gathering information step-by-step.
+You operate in a loop: Thought -> Action -> Observation.
+
+**AVAILABLE TOOLS:**
+1. \`search(query: string)\`: Search the web for information. Use this to find sources.
+2. \`visit(url: string)\`: Scrape the content of a specific URL. Use this to read a page found in search results.
+3. \`answer(markdown_text: string)\`: The FINAL answer to the user. This ends the process.
+
+**RULES:**
+1. You have a maximum of 10 steps. Be efficient.
+2. **CRITICAL: If the user mentions a specific URL or domain (e.g., 'atsu.moe', 'twitter.com'), you MUST 'visit' it directly in your first few steps. Do not keep searching for it.**
+3. **Analyze the 'SUGGESTED PLAN' in your history (if present). Use it as a guide, but deviate if you find a better path.**
+4. **DO NOT REPEAT** the same search query or action. If a search yields no useful results, try a DIFFERENT approach or query.
+5. If you have tried multiple searches with no luck, just ANSWER with the best information you have or stating you couldn't find it.
+6. Your response MUST be valid JSON in one of these formats:
+
+**FORMATS (Choose One):**
+
+{"action": "search", "query": "your search query"}
+
+{"action": "visit", "url": "https://example.com/article"}
+
+{"action": "answer", "text": "Your final detailed answer here..."}
+
+**CURRENT STATE:**
+User Query: ${query}
+
+**HISTORY (Previous Steps):**
+${history_log}
+
+**YOUR NEXT STEP (JSON ONLY):**
 `;

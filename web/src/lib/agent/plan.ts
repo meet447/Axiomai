@@ -41,7 +41,7 @@ function parsePlan(text: string): PlanStep[] {
     } catch (e) {
         console.error("Failed to parse plan JSON:", e);
         // Fallback: try to find array in text
-        const match = text.match(/\[.*\]/s);
+        const match = text.match(/\[[\s\S]*\]/);
         if (match) {
             try {
                 return JSON.parse(match[0]);

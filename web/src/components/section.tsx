@@ -15,7 +15,7 @@ export const Section = ({
   animate = true,
   streaming = false,
 }: {
-  title: "Sources" | "Answer" | "Related" | "Images";
+  title: "Sources" | "Answer" | "Related" | "Images" | "Agent Actions";
   children: React.ReactNode;
   animate?: boolean;
   streaming?: boolean;
@@ -25,6 +25,7 @@ export const Section = ({
     Answer: SparkleIcon,
     Related: ListPlusIcon,
     Images: CameraIcon,
+    "Agent Actions": StarIcon,
   };
 
   const IconComponent = iconMap[title] || StarIcon;

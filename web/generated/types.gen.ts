@@ -62,6 +62,7 @@ export type ChatMessage = {
   images?: Array<string> | null;
   is_error_message?: boolean;
   agent_response?: AgentSearchFullResponse | null;
+  agent_actions?: Array<{ step: number; action: any }> | null;
 };
 
 export enum ChatModel {
@@ -81,23 +82,24 @@ export type ChatRequest = {
   history?: Array<Message>;
   model?: ChatModel;
   pro_search?: boolean;
+  agentic?: boolean;
 };
 
 export type ChatResponseEvent = {
   event: StreamEvent;
   data:
-    | BeginStream
-    | SearchResultStream
-    | TextChunkStream
-    | RelatedQueriesStream
-    | StreamEndStream
-    | FinalResponseStream
-    | ErrorStream
-    | AgentQueryPlanStream
-    | AgentSearchQueriesStream
-    | AgentReadResultsStream
-    | AgentFinishStream
-    | AgentSearchFullResponseStream;
+  | BeginStream
+  | SearchResultStream
+  | TextChunkStream
+  | RelatedQueriesStream
+  | StreamEndStream
+  | FinalResponseStream
+  | ErrorStream
+  | AgentQueryPlanStream
+  | AgentSearchQueriesStream
+  | AgentReadResultsStream
+  | AgentFinishStream
+  | AgentSearchFullResponseStream;
 };
 
 export type ChatSnapshot = {
@@ -167,7 +169,19 @@ export enum StreamEvent {
   AGENT_READ_RESULTS = "agent-read-results",
   AGENT_FINISH = "agent-finish",
   AGENT_FULL_RESPONSE = "agent-full-response",
+  AGENT_ACTION = "agent-action",
 }
+
+export type AgentActionStream = {
+  event_type?: StreamEvent;
+  step: number;
+  action: {
+    action: string;
+    query?: string;
+    url?: string;
+    text?: string;
+  };
+};
 
 export type TextChunkStream = {
   event_type?: StreamEvent;

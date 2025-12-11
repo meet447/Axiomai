@@ -19,6 +19,7 @@ import {
   StreamEndStream,
   StreamEvent,
   TextChunkStream,
+  AgentActionStream,
 } from "../../generated";
 import Error from "next/error";
 import {
@@ -72,7 +73,7 @@ const convertToChatRequest = (query: string, history: ChatMessage[]) => {
 
 export const useChat = () => {
   const { addMessage, messages, threadId, setThreadId } = useChatStore();
-  const { model, proMode } = useConfigStore();
+  const { model, proMode, agenticMode } = useConfigStore();
 
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(
     null,
@@ -93,6 +94,7 @@ export const useChat = () => {
           related_queries: [],
           sources: [],
           images: [],
+          agent_actions: [],
         });
         break;
       case StreamEvent.SEARCH_RESULTS:
@@ -144,7 +146,9 @@ export const useChat = () => {
             step_number: index,
           })) ?? [];
 
-        steps_details[0].status = AgentSearchStepStatus.CURRENT;
+        if (steps_details.length > 0) {
+          steps_details[0].status = AgentSearchStepStatus.CURRENT;
+        }
         state.agent_response = {
           steps_details: steps_details,
         };
@@ -167,6 +171,11 @@ export const useChat = () => {
           eventItem.data as AgentReadResultsStream;
         steps_details[resultsStepNumber].results = results;
 
+        break;
+      case StreamEvent.AGENT_ACTION:
+        const actionData = eventItem.data as AgentActionStream;
+        if (!state.agent_actions) state.agent_actions = [];
+        state.agent_actions.push({ step: actionData.step, action: actionData.action });
         break;
       case StreamEvent.AGENT_FINISH:
         break;
@@ -192,6 +201,7 @@ export const useChat = () => {
       related_queries: state.related_queries,
       sources: state.sources,
       images: state.images,
+      agent_actions: state.agent_actions,
       agent_response:
         state.agent_response !== null
           ? {
@@ -211,6 +221,7 @@ export const useChat = () => {
         sources: [],
         related_queries: [],
         images: [],
+        agent_actions: [],
         agent_response: null,
       };
 
@@ -223,6 +234,7 @@ export const useChat = () => {
         thread_id: threadId,
         model: model as ChatModel,
         pro_search: proMode,
+        agentic: agenticMode,
       };
 
       await streamChat({

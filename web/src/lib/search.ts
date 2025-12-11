@@ -30,39 +30,36 @@ export async function performSearch(query: string, maxText: number = 7, focusMod
         } else if (SEARCH_PROVIDER === 'tavily' && SEARCH_API_KEY) {
             results = await searchTavily(searchQuery);
         } else {
-            // Primary Free Strategy: DuckDuckGo Lite (Most robust)
-            results = await searchDuckDuckGoLite(searchQuery);
+            // Strategy 1: DuckDuckGo HTML (Usually best quality free search)
+            results = await searchDuckDuckGoHtml(searchQuery);
 
-            // Fallback: DuckDuckGo HTML (Better snippets, but often blocked)
+            // Strategy 2: Google Scraper (Fallback if DDG fails/timeouts)
+            // Note: Google serves 429s aggressively, but good for a few hits.
             if (results.length === 0) {
-                results = await searchDuckDuckGoHtml(searchQuery);
+                results = await searchGoogleScraper(searchQuery);
             }
 
-            // Google Scraper removed due to consistent 429s.
-            // If both DDG methods fail, we return empty results to prompt the agent to rely on its own knowledge or ask clarifying questions.
+            // Strategy 3: DuckDuckGo Lite (Last resort, often blocked)
+            if (results.length === 0) {
+                results = await searchDuckDuckGoLite(searchQuery);
+            }
+
+            // Bing Scraper disabled due to poor quality results (random quizzes etc).
         }
 
+
+
         // Limit results
-        // Fetch images using GIS (Google Image Search) fallback if not provided by API
-        // For writing/academic modes, maybe skip images or keep them? Let's keep them for now.
         if (images.length === 0 && focusMode !== 'writing') {
             images = await searchImages(searchQuery);
         }
 
-        // Limit results
         results = results.slice(0, maxText);
         images = images.slice(0, 6);
 
-        // Enrich with content scraping if needed, but for speed usually snippets are enough 
-        // or we scrape top 2. Let's scrape top 2 for better context if snippet is short.
-        // basic/expert logic might differ, but let's keep it simple for now.
-        // For now we will rely on the snippets returned by search engines as they are usually decent.
-        // If we need deep scraping, we can re-enable `fetchAndProcessUrl`.
-
-        // Construct response
         return {
             results: results,
-            images: images // Images require specific API calls or scraping, keeping empty for now unless provider gives them
+            images: images
         };
 
     } catch (error) {
@@ -75,14 +72,18 @@ async function searchDuckDuckGoHtml(query: string): Promise<SearchResult[]> {
     try {
         const formData = new URLSearchParams();
         formData.append('q', query);
+        formData.append('b', ''); // 'b' param sometimes helps
+        formData.append('kl', 'us-en'); // Region
 
+        // Simple headers - mimic a standard browser request without over-engineering
         const res = await fetch('https://html.duckduckgo.com/html/', {
             method: 'POST',
             body: formData,
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                // Mimic a browser to avoid some checks
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                // Removed Origin/Referer to avoid triggering strict firewall rules
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             }
         });
 
@@ -228,25 +229,43 @@ async function searchImages(query: string): Promise<string[]> {
 export async function fetchAndProcessUrl(url: string): Promise<string> {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-        const res = await fetch(url, { signal: controller.signal });
+        const res = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': 'https://www.google.com/',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+            }
+        });
         clearTimeout(timeoutId);
 
-        if (!res.ok) return "";
+        if (!res.ok) {
+            console.error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+            return "";
+        }
 
         const html = await res.text();
         const $ = cheerio.load(html);
 
         // Remove unwanted elements
-        $('script, style, noscript, header, footer, nav, meta').remove();
+        $('script, style, noscript, header, footer, nav, meta, svg, button').remove();
 
         // Extract text
         let text = $('body').text();
         text = text.replace(/\s+/g, ' ').trim();
 
-        return text.slice(0, 4000);
-    } catch (e) {
+        if (text.length < 100) {
+            console.warn(`Fetched content for ${url} is too short (${text.length} chars). Possible blockage.`);
+        }
+
+        return text.slice(0, 5000); // Increased slice limit
+    } catch (e: any) {
+        console.error(`Fetch error for ${url}:`, e.message);
         return "";
     }
 }
@@ -299,6 +318,42 @@ async function searchDuckDuckGoLite(query: string): Promise<SearchResult[]> {
         return results;
     } catch (e) {
         console.error("DDG Lite search failed", e);
+        return [];
+    }
+}
+
+async function searchBingScraper(query: string): Promise<SearchResult[]> {
+    try {
+        const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}&cc=US&setmkt=en-US`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+            }
+        });
+
+        if (!res.ok) return [];
+
+        const html = await res.text();
+        const $ = cheerio.load(html);
+        const results: SearchResult[] = [];
+
+        $('li.b_algo').each((i, el) => {
+            const titleEl = $(el).find('h2 a');
+            const title = titleEl.text().trim();
+            const url = titleEl.attr('href');
+
+            const captionEl = $(el).find('.b_caption p');
+            const snippet = captionEl.text().trim();
+
+            if (title && url && snippet) {
+                results.push({ title, url, content: snippet });
+            }
+        });
+
+        return results;
+    } catch (e) {
+        console.error("Bing scraper failed", e);
         return [];
     }
 }
