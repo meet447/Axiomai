@@ -9,4 +9,7 @@ frontend/.swc/
 backend/test.py
 backend/test2.py
 *.env
+*.env.local
+*.env.development
+*.env.production
 test.json

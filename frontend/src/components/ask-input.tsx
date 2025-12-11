@@ -5,6 +5,7 @@ import { ArrowUp } from "lucide-react";
 import ProToggle from "./pro-toggle";
 
 import { ModelSelection } from "./model-selection";
+import { FocusSelector } from "./focus-selector";
 
 const InputBar = ({
   input,
@@ -24,8 +25,9 @@ const InputBar = ({
         />
       </div>
       <div className="flex justify-between">
-        <div>
+        <div className="flex gap-2 items-center">
           <ModelSelection />
+          <FocusSelector />
         </div>
         <div className="flex items-center gap-2">
           <ProToggle />
@@ -62,6 +64,7 @@ const FollowingUpInput = ({
         />
       </div>
       <div className="flex items-center gap-2">
+        <FocusSelector />
         <ProToggle />
         <Button
           type="submit"

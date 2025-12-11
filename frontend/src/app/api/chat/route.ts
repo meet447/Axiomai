@@ -17,6 +17,7 @@ interface ChatRequest {
     history: any[];
     model: string;
     pro_search: boolean;
+    focusMode: string;
 }
 
 function formatContext(results: SearchResult[]): string {
@@ -48,6 +49,7 @@ async function handleBasicMode(
     query: string,
     history: any[],
     model: string,
+    focusMode: string,
     controller: ReadableStreamDefaultController
 ) {
     let currentQuery = query;
@@ -57,20 +59,24 @@ async function handleBasicMode(
 
     // 2. Rephrase if history exists
     if (history && history.length > 0) {
+        // ... (rephrase logic same)
         const rephrasedStream = await openai.chat.completions.create({
             model: MODELS.fast,
             messages: [{ role: 'user', content: HISTORY_QUERY_REPHRASE(JSON.stringify(history), currentQuery) }],
-            stream: false, // For simplicity in basic mode rephrasing, or stream if really needed but usually short
+            stream: false,
         });
-        // Just get the text
         const rephrased = rephrasedStream.choices[0].message.content;
         if (rephrased) {
             currentQuery = rephrased;
         }
     }
 
-    // 3. Search
-    const searchResults = await performSearch(currentQuery);
+    // 3. Search (writing mode skips search)
+    let searchResults: any = { results: [], images: [] };
+    if (focusMode !== 'writing') {
+        searchResults = await performSearch(currentQuery, 7, focusMode);
+    }
+
     sendEvent(controller, 'search-results', {
         event_type: 'search-results',
         results: searchResults.results,
@@ -105,9 +111,13 @@ async function handleBasicMode(
 async function handleExpertMode(
     query: string,
     history: any[],
+    focusMode: string,
     controller: ReadableStreamDefaultController
 ) {
+    // ... setup
     let currentQuery = query;
+
+    // ... rephrase logic (omitted for brevity in prompt match)
 
     // 1. Begin Stream
     sendEvent(controller, 'begin-stream', { event_type: 'begin-stream', query });
@@ -126,6 +136,11 @@ async function handleExpertMode(
             console.error("Rephrasing failed", e);
         }
     }
+
+    // Writing mode bypasses explicit search steps usually, but Expert mode implies research.
+    // We can argue 'Writing' mode shouldn't even trigger Expert Mode, but if it does, 
+    // maybe we just skip search steps or treat 'Writing' as 'Creative Agent'.
+    // For now, let's respect focusMode in searches.
 
     // 3. Generate Plan
     const plan = await generatePlan(currentQuery);
@@ -153,7 +168,10 @@ async function handleExpertMode(
         sendEvent(controller, 'agent-search-queries', { step_number: step.id, queries: relatedQueries });
 
         // Search in parallel
-        const searchResults = await Promise.all(relatedQueries.map(q => performSearch(q, 4))); // lighter search
+        let searchResults: any[] = [];
+        if (focusMode !== 'writing') {
+            searchResults = await Promise.all(relatedQueries.map(q => performSearch(q, 4, focusMode)));
+        }
 
         const allResults: SearchResult[] = [];
         const allImages: string[] = [];
@@ -224,15 +242,15 @@ async function handleExpertMode(
 export async function POST(req: NextRequest) {
     try {
         const payload: ChatRequest = await req.json();
-        const { query, history, model, pro_search } = payload;
+        const { query, history, model, pro_search, focusMode } = payload;
 
         const stream = new ReadableStream({
             async start(controller) {
                 try {
                     if (pro_search) {
-                        await handleExpertMode(query, history, controller);
+                        await handleExpertMode(query, history, focusMode, controller);
                     } else {
-                        await handleBasicMode(query, history, model, controller);
+                        await handleBasicMode(query, history, model, focusMode, controller);
                     }
                     controller.close();
                 } catch (e: any) {

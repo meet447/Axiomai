@@ -8,31 +8,25 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { SearchResult } from "../../generated";
+import { SearchResult } from "@/lib/search"; // Correct import
 
 export const SearchResultsSkeleton = () => {
   return (
-    <>
-      <div className="flex flex-wrap w-full">
-        {[...Array(4)].map((_, index) => (
-          <div className="w-1/2 md:w-1/4 p-1" key={`skeleton-${index}`}>
-            <Skeleton className="rounded-md shadow-none border-none h-[70px] bg-card " />
-          </div>
-        ))}
-      </div>
-    </>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full mb-4">
+      {[...Array(4)].map((_, index) => (
+        <Skeleton key={`skeleton-${index}`} className="h-[75px] w-full rounded-xl" />
+      ))}
+    </div>
   );
 };
 
 export const Logo = ({ url }: { url: string }) => {
   return (
-    <div className="rounded-full overflow-hidden relative">
+    <div className="rounded-full overflow-hidden shrink-0">
       <img
-        className="block relative"
-        src={`https://www.google.com/s2/favicons?sz=128&domain=${url}`}
+        className="block w-4 h-4 object-contain"
+        src={`https://www.google.com/s2/favicons?sz=64&domain=${url}`}
         alt="favicon"
-        width={16}
-        height={16}
       />
     </div>
   );
@@ -41,82 +35,66 @@ export const Logo = ({ url }: { url: string }) => {
 export function SearchResults({ results }: { results: SearchResult[] }) {
   const [showAll, setShowAll] = useState(false);
 
-  const displayedResults = showAll ? results : results.slice(0, 3);
-  const additionalCount = results.length > 3 ? results.length - 3 : 0;
-  const additionalResults = results.slice(3, 3 + additionalCount);
+  const displayedResults = showAll ? results : results.slice(0, 4); // Show 4 initially
+  const additionalCount = results.length > 4 ? results.length - 4 : 0;
+
   return (
-    <div className="flex flex-wrap w-full ">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full mb-2">
       {displayedResults.map(({ title, url, content }, index) => {
-        const formattedUrl = new URL(url).hostname.split(".").slice(-2, -1)[0];
+        const hostname = new URL(url).hostname.replace('www.', '');
 
         return (
-          <HoverCard key={`source-${index}`}>
+          <HoverCard key={`source-${index}`} openDelay={200}>
             <HoverCardTrigger asChild>
-              <div className="w-1/2 md:w-1/4 p-1">
-                <a className="" href={url} target="_blank">
-                  <Card className="flex-1 rounded-md flex-col shadow-none border-none h-[70px]">
-                    <CardContent className="p-2 flex flex-col justify-between h-full">
-                      <p className="text-xs line-clamp-2 font-medium text-foreground/80">
-                        {title}
-                      </p>
-                      <div className="flex space-x-1">
-                        <div className="flex items-center space-x-2">
-                          <div className="rounded-full overflow-hidden relative">
-                            <Logo url={url} />
-                          </div>
-                          <div className="text-xs text-muted-foreground truncate font-medium">
-                            {formattedUrl}
-                          </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground font-medium">
-                          ·
-                        </div>
-                        <div className="text-xs text-muted-foreground truncate font-medium">
-                          {index + 1}
-                        </div>
+              <a href={url} target="_blank" rel="noopener noreferrer" className="block h-full">
+                <Card className="h-full rounded-xl bg-muted/40 hover:bg-muted/80 border-none transition-colors duration-200 cursor-pointer shadow-sm">
+                  <CardContent className="p-3 flex flex-col justify-between h-[75px]">
+                    <p className="text-xs font-medium text-foreground/90 line-clamp-2 leading-snug" title={title}>
+                      {title}
+                    </p>
+                    <div className="flex items-center justify-between mt-auto pt-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Logo url={url} />
+                        <span className="text-[10px] text-muted-foreground truncate font-medium">
+                          {hostname}
+                        </span>
                       </div>
-                    </CardContent>
-                  </Card>
+                      <span className="text-[10px] text-muted-foreground/60 font-mono flex-shrink-0 bg-background/50 px-1.5 py-0.5 rounded-full">
+                        {index + 1}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </a>
+            </HoverCardTrigger>
+
+            <HoverCardContent className="w-80 p-0 overflow-hidden" align="start" sideOffset={8}>
+              <div className="p-3 bg-card border-b">
+                <div className="flex items-center gap-2 mb-2">
+                  <Logo url={url} />
+                  <span className="text-xs font-semibold text-muted-foreground">{hostname}</span>
+                </div>
+                <a href={url} target="_blank" className="text-sm font-semibold hover:underline block mb-1">
+                  {title}
                 </a>
               </div>
-            </HoverCardTrigger>
-            <HoverCardContent className="w-80 py-2">
-              <div className="flex justify-between space-x-4">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <div className="rounded-full overflow-hidden relative">
-                      <Logo url={url} />
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate font-medium">
-                      {formattedUrl}
-                    </div>
-                  </div>
-                  <p className="text-sm font-medium">{title}</p>
-                  <span className="text-sm line-clamp-3 font-light text-foreground/90">
-                    {content}
-                  </span>
-                </div>
+              <div className="p-3 bg-muted/30">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {content}
+                </p>
               </div>
             </HoverCardContent>
           </HoverCard>
         );
       })}
+
       {!showAll && additionalCount > 0 && (
-        <div
-          className="cursor-pointer
-        w-1/2 md:w-1/4  p-1"
-          onClick={() => setShowAll(true)}
-        >
-          <Card className="flex-1 rounded-md flex-col shadow-none border-none h-[70px]">
-            <CardContent className="p-2 flex flex-col justify-between h-full">
-              <div className="flex items-center space-x-2">
-                {additionalResults.map(({ url }, index) => {
-                  return <Logo url={url} key={`logo-${index}`} />;
-                })}
-              </div>
-              <div className="text-xs text-muted-foreground truncate font-medium">
+        <div onClick={() => setShowAll(true)} className="cursor-pointer h-full">
+          <Card className="h-full rounded-xl bg-muted/40 hover:bg-muted/80 border-none transition-colors duration-200 flex items-center justify-center shadow-sm">
+            <CardContent className="flex flex-col items-center justify-center p-3 h-[75px]">
+              <span className="text-xs font-medium text-muted-foreground">
                 View {additionalCount} more
-              </div>
+              </span>
             </CardContent>
           </Card>
         </div>

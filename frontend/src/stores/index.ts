@@ -16,6 +16,7 @@ const useStore = create<StoreState>()(
       partialize: (state) => ({
         model: state.model,
         proMode: state.proMode,
+        focusMode: state.focusMode,
       }),
     },
   ),
@@ -36,4 +37,6 @@ export const useConfigStore = () =>
     setModel: state.setModel,
     proMode: state.proMode,
     toggleProMode: state.toggleProMode,
+    focusMode: state.focusMode,
+    setFocusMode: state.setFocusMode,
   }));

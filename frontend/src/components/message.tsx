@@ -1,4 +1,4 @@
-import React, { FC, memo, useEffect, useMemo, useState } from "react";
+import React, { FC, memo, useEffect, useState, useMemo } from "react";
 import { MemoizedReactMarkdown } from "./markdown";
 import rehypeRaw from "rehype-raw";
 
@@ -6,6 +6,12 @@ import _ from "lodash";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "./ui/skeleton";
 import { ChatMessage } from "../../generated";
+import { SearchResult } from "@/lib/search";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 
 function chunkString(str: string): string[] {
   const words = str.split(" ");
@@ -18,17 +24,38 @@ export interface MessageProps {
   isStreaming?: boolean;
 }
 
-const CitationText = ({ number, href }: { number: number; href: string }) => {
-  return `
-  <button className="select-none no-underline">
-  <a className="" href="${href}" target="_blank">
-        <span className="relative -top-[0rem] inline-flex">
-          <span className="h-[1rem] min-w-[1rem] items-center justify-center rounded-full  text-center px-1 text-xs font-mono bg-muted text-[0.60rem] text-muted-foreground">
-            ${number}
+const Citation = ({ index, source }: { index: number; source: SearchResult }) => {
+  const domain = new URL(source.url).hostname.replace('www.', '');
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger asChild>
+        <button className="select-none no-underline inline-flex items-center justify-center align-top ml-0.5" type="button">
+          <span className="relative -top-[0.2rem] h-[1rem] min-w-[1rem] items-center justify-center rounded-full text-center px-1 text-[0.60rem] font-mono bg-muted text-muted-foreground hover:text-primary hover:bg-muted/80 transition-colors">
+            {index}
           </span>
-        </span>
-      </a>
-    </button>`;
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-80 p-3" align="start">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <img
+              src={`https://www.google.com/s2/favicons?sz=64&domain=${source.url}`}
+              className="w-4 h-4 rounded-full"
+              alt="favicon"
+            />
+            <span className="text-xs font-semibold text-muted-foreground">{domain}</span>
+          </div>
+          <a href={source.url} target="_blank" className="font-medium hover:underline line-clamp-2 text-sm">
+            {source.title}
+          </a>
+          <p className="text-xs text-muted-foreground line-clamp-3">
+            {source.content}
+          </p>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
 };
 
 const Text = ({
@@ -58,7 +85,9 @@ const Text = ({
     } else if (React.isValidElement(node)) {
       return React.cloneElement(
         node,
+        // @ts-ignore
         node.props,
+        // @ts-ignore
         renderText(node.props.children),
       );
     } else if (Array.isArray(node)) {
@@ -120,37 +149,42 @@ export const MessageComponent: FC<MessageProps> = ({
   isStreaming = false,
 }) => {
   const { content, sources } = message;
-  const [parsedMessage, setParsedMessage] = useState<string>(content);
 
-  useEffect(() => {
-    const citationRegex = /(\[\d+\])/g;
-    const newMessage = content.replace(citationRegex, (match) => {
-      const number = match.slice(1, -1);
-      const source = sources?.find(
-        (source, idx) => idx + 1 === parseInt(number),
-      );
-      return CitationText({
-        number: parseInt(number),
-        href: source?.url ?? "",
-      });
+  // Preprocess content to replace [1] with <span data-citation="1"></span>
+  const processedContent = useMemo(() => {
+    // Replace [1] with a span that we can target in the components map
+    return content.replace(/\[(\d+)\]/g, (_, number) => {
+      return `<span data-citation="${number}"></span>`;
     });
-    setParsedMessage(newMessage);
-  }, [content, sources]);
+  }, [content]);
 
   return (
-    <MemoizedReactMarkdown
-      components={{
-        // TODO: For some reason, can't pass props into the components
-        // @ts-ignore
-        p: isStreaming ? StreamingParagraph : Paragraph,
-        // @ts-ignore
-        li: isStreaming ? StreamingListItem : ListItem,
-      }}
-      className="prose dark:prose-invert inline leading-relaxed break-words "
-      rehypePlugins={[rehypeRaw]}
-    >
-      {parsedMessage}
-    </MemoizedReactMarkdown>
+    <div className="prose dark:prose-invert inline leading-relaxed break-words">
+      <MemoizedReactMarkdown
+        components={{
+          // @ts-ignore
+          p: isStreaming ? StreamingParagraph : Paragraph,
+          // @ts-ignore
+          li: isStreaming ? StreamingListItem : ListItem,
+          // @ts-ignore
+          span: ({ node, ...props }) => {
+            // @ts-ignore
+            const indexStr = props['data-citation'];
+            if (indexStr) {
+              const index = parseInt(indexStr as string);
+              const source = sources?.find((_, idx) => idx + 1 === index);
+              if (source) {
+                return <Citation index={index} source={source} />;
+              }
+            }
+            return <span {...props} />;
+          }
+        }}
+        rehypePlugins={[rehypeRaw]}
+      >
+        {processedContent}
+      </MemoizedReactMarkdown>
+    </div>
   );
 };
 

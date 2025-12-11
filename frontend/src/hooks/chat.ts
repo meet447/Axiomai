@@ -213,21 +213,22 @@ export const useChat = () => {
         images: [],
         agent_response: null,
       };
+
       addMessage({ role: MessageRole.USER, content: request.query });
       setIsStreamingProSearch(proMode);
 
+      // Construct the full request with store values
       const req: ChatRequest = {
         ...request,
         thread_id: threadId,
-        model: model as ChatModel,  // <--- Cast model here
+        model: model as ChatModel,
         pro_search: proMode,
       };
+
       await streamChat({
         request: req,
         onMessage: (event) => {
-          // Handles keep-alive events
           if (!event.data) return;
-
           const eventItem: ChatResponseEvent = JSON.parse(event.data);
           handleEvent(eventItem, state);
         },

@@ -15,29 +15,35 @@ export interface SearchResponse {
 const SEARCH_PROVIDER = process.env.SEARCH_PROVIDER || 'google-scraper';
 const SEARCH_API_KEY = process.env.SEARCH_API_KEY;
 
-export async function performSearch(query: string, maxText: number = 7): Promise<SearchResponse> {
+export async function performSearch(query: string, maxText: number = 7, focusMode: string = 'web'): Promise<SearchResponse> {
     try {
         let results: SearchResult[] = [];
         let images: string[] = [];
 
+        let searchQuery = query;
+        if (focusMode === 'social') searchQuery += ' site:reddit.com OR site:twitter.com';
+        if (focusMode === 'academic') searchQuery += ' site:arxiv.org OR site:scholar.google.com';
+        if (focusMode === 'video') searchQuery += ' site:youtube.com';
+
         if (SEARCH_PROVIDER === 'serper' && SEARCH_API_KEY) {
-            results = await searchSerper(query);
+            results = await searchSerper(searchQuery);
         } else if (SEARCH_PROVIDER === 'tavily' && SEARCH_API_KEY) {
-            results = await searchTavily(query);
+            results = await searchTavily(searchQuery);
         } else {
             // Fallback to DuckDuckGo HTML (Most reliable free option)
-            results = await searchDuckDuckGoHtml(query);
+            results = await searchDuckDuckGoHtml(searchQuery);
 
             // Second fallback if DDG fails?
             if (results.length === 0) {
-                results = await searchGoogleScraper(query);
+                results = await searchGoogleScraper(searchQuery);
             }
         }
 
         // Limit results
         // Fetch images using GIS (Google Image Search) fallback if not provided by API
-        if (images.length === 0) {
-            images = await searchImagesGis(query);
+        // For writing/academic modes, maybe skip images or keep them? Let's keep them for now.
+        if (images.length === 0 && focusMode !== 'writing') {
+            images = await searchImagesGis(searchQuery);
         }
 
         // Limit results
