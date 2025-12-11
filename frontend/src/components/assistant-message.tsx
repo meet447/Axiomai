@@ -34,24 +34,14 @@ export function ErrorMessage({ content }: { content: string }) {
   );
 }
 
-import { ClarificationForm } from "./clarification-form";
-
-
-
 export const AssistantMessageContent = ({
   message,
   isStreaming = false,
   onRelatedQuestionSelect,
-  isLast = false,
-  onClarificationSubmit,
-  originalQuery = "",
 }: {
   message: ChatMessage;
   isStreaming?: boolean;
   onRelatedQuestionSelect: (question: string) => void;
-  isLast?: boolean;
-  onClarificationSubmit?: (query: string, answers: string[]) => void;
-  originalQuery?: string;
 }) => {
   const {
     sources,
@@ -59,31 +49,10 @@ export const AssistantMessageContent = ({
     related_queries,
     images,
     is_error_message = false,
-    clarification_questions,
   } = message;
 
   if (is_error_message) {
     return <ErrorMessage content={message.content} />;
-  }
-
-  // Deep Research Clarification Logic
-  if (clarification_questions && clarification_questions.length > 0) {
-    if (isLast && onClarificationSubmit) {
-      return (
-        <ClarificationForm
-          questions={clarification_questions}
-          originalQuery={originalQuery}
-          onSubmit={onClarificationSubmit}
-        />
-      );
-    } else {
-      return (
-        <div className="p-4 border border-dashed border-muted-foreground/30 rounded-lg bg-muted/20 text-sm text-muted-foreground flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          Clarification provided. Researching...
-        </div>
-      );
-    }
   }
 
   return (

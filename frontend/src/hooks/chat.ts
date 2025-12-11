@@ -14,7 +14,6 @@ import {
   Message,
   MessageRole,
   RelatedQueriesStream,
-  RequestClarificationStream,
   SearchResult,
   SearchResultStream,
   StreamEndStream,
@@ -94,7 +93,6 @@ export const useChat = () => {
           related_queries: [],
           sources: [],
           images: [],
-          clarification_questions: [],
         });
         break;
       case StreamEvent.SEARCH_RESULTS:
@@ -172,10 +170,6 @@ export const useChat = () => {
         break;
       case StreamEvent.AGENT_FINISH:
         break;
-      case StreamEvent.REQUEST_CLARIFICATION:
-        const clarificationData = eventItem.data as RequestClarificationStream;
-        state.clarification_questions = clarificationData.questions ?? [];
-        break;
       case StreamEvent.ERROR:
         const errorData = eventItem.data as ErrorStream;
         addMessage({
@@ -218,22 +212,9 @@ export const useChat = () => {
         related_queries: [],
         images: [],
         agent_response: null,
-        clarification_questions: null,
       };
 
-      // Only add user message if NOT answering a clarification (original query execution)
-      if (!request.clarification_answers) {
-        addMessage({ role: MessageRole.USER, content: request.query });
-      } else {
-        // If answering clarification, we might want to clear the "Clarification Request" message 
-        // (which is the last message in history, presumably the one we are retrying)
-        // But useChat store logic might be complex. simplest is just to not add the User query again.
-        // The previous assistant message (requesting clarification) will be replaced by the new streaming message 
-        // because key/index based rendering? No, addMessage appends.
-        // We probably want to DELETE the last assistant message (the clarification request).
-        // But let's just not add the User message for now. The assistant response will be appended.
-      }
-
+      addMessage({ role: MessageRole.USER, content: request.query });
       setIsStreamingProSearch(proMode);
 
       // Construct the full request with store values
@@ -255,12 +236,8 @@ export const useChat = () => {
     },
   });
 
-  const handleSend = async (query: string, clarificationAnswers?: string[]) => {
-    const baseRequest = convertToChatRequest(query, messages);
-    await chat({
-      ...baseRequest,
-      clarification_answers: clarificationAnswers
-    });
+  const handleSend = async (query: string) => {
+    await chat(convertToChatRequest(query, messages));
   };
 
   return {

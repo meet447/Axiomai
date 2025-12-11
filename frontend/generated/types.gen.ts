@@ -62,7 +62,6 @@ export type ChatMessage = {
   images?: Array<string> | null;
   is_error_message?: boolean;
   agent_response?: AgentSearchFullResponse | null;
-  clarification_questions?: Array<string> | null;
 };
 
 export enum ChatModel {
@@ -82,25 +81,23 @@ export type ChatRequest = {
   history?: Array<Message>;
   model?: ChatModel;
   pro_search?: boolean;
-  clarification_answers?: Array<string> | null;
 };
 
 export type ChatResponseEvent = {
   event: StreamEvent;
   data:
-  | BeginStream
-  | SearchResultStream
-  | TextChunkStream
-  | RelatedQueriesStream
-  | StreamEndStream
-  | FinalResponseStream
-  | ErrorStream
-  | AgentQueryPlanStream
-  | AgentSearchQueriesStream
-  | AgentReadResultsStream
-  | AgentFinishStream
-  | AgentSearchFullResponseStream
-  | RequestClarificationStream;
+    | BeginStream
+    | SearchResultStream
+    | TextChunkStream
+    | RelatedQueriesStream
+    | StreamEndStream
+    | FinalResponseStream
+    | ErrorStream
+    | AgentQueryPlanStream
+    | AgentSearchQueriesStream
+    | AgentReadResultsStream
+    | AgentFinishStream
+    | AgentSearchFullResponseStream;
 };
 
 export type ChatSnapshot = {
@@ -140,11 +137,6 @@ export type RelatedQueriesStream = {
   related_queries?: Array<string>;
 };
 
-export type RequestClarificationStream = {
-  event_type?: StreamEvent;
-  questions?: Array<string>;
-};
-
 export type SearchResult = {
   title: string;
   url: string;
@@ -175,7 +167,6 @@ export enum StreamEvent {
   AGENT_READ_RESULTS = "agent-read-results",
   AGENT_FINISH = "agent-finish",
   AGENT_FULL_RESPONSE = "agent-full-response",
-  REQUEST_CLARIFICATION = "request-clarification",
 }
 
 export type TextChunkStream = {

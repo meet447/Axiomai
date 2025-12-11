@@ -7,7 +7,7 @@ import {
     AGENT_QUERY_PROMPT
 } from '@/lib/agent/prompts';
 import { generatePlan } from '@/lib/agent/plan';
-import { generateSearchQueries, generateRelatedQuestions, generateClarificationQuestions } from '@/lib/agent/questions';
+import { generateSearchQueries, generateRelatedQuestions } from '@/lib/agent/questions';
 
 export const runtime = 'nodejs'; // Use nodejs runtime for robust scraping/cheerio
 
@@ -18,7 +18,6 @@ interface ChatRequest {
     model: string;
     pro_search: boolean;
     focusMode: string;
-    clarification_answers?: string[];
 }
 
 function formatContext(results: SearchResult[]): string {
@@ -113,29 +112,10 @@ async function handleExpertMode(
     query: string,
     history: any[],
     focusMode: string,
-    controller: ReadableStreamDefaultController,
-    clarification_answers?: string[]
+    controller: ReadableStreamDefaultController
 ) {
-    // 0. Check for Clarification (Deep Research)
-    // Only check if we haven't already received answers
-    if (!clarification_answers || clarification_answers.length === 0) {
-        // Try to generate clarifying questions
-        const questions = await generateClarificationQuestions(query, history);
-        if (questions.length > 0) {
-            // Emitting REQUEST-CLARIFICATION event
-            sendEvent(controller, 'request-clarification', { questions });
-            sendEvent(controller, 'stream-end', { thread_id: 125 }); // End stream to let user answer
-            return;
-        }
-    }
-
     // ... setup
     let currentQuery = query;
-
-    // If we have answers, append them to the query context to guide the agent
-    if (clarification_answers && clarification_answers.length > 0) {
-        currentQuery += `\n\nUser Clarifications:\n${clarification_answers.join('\n')}`;
-    }
 
     // ... rephrase logic (omitted for brevity in prompt match)
 
@@ -225,13 +205,12 @@ async function handleExpertMode(
         .join('\n\n');
 
     // Gather sources/images for final event
-    // Gather sources/images for final event
     const combinedSources: SearchResult[] = [];
     const combinedImages: string[] = [];
-
-    // Collect all sources found across all steps
-    Object.values(stepSources).forEach(results => combinedSources.push(...results));
-    Object.values(stepImages).forEach(images => combinedImages.push(...images));
+    dependencies.forEach(depId => {
+        if (stepSources[depId]) combinedSources.push(...stepSources[depId]);
+        if (stepImages[depId]) combinedImages.push(...stepImages[depId]);
+    });
 
     // Dedupe logic simplified
     const uniqueSources = Array.from(new Map(combinedSources.map(s => [s.url, s])).values());
@@ -269,7 +248,7 @@ export async function POST(req: NextRequest) {
             async start(controller) {
                 try {
                     if (pro_search) {
-                        await handleExpertMode(query, history, focusMode, controller, payload.clarification_answers);
+                        await handleExpertMode(query, history, focusMode, controller);
                     } else {
                         await handleBasicMode(query, history, model, focusMode, controller);
                     }

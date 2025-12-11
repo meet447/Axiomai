@@ -33,12 +33,7 @@ export async function performSearch(query: string, maxText: number = 7, focusMod
             // Fallback to DuckDuckGo HTML (Most reliable free option)
             results = await searchDuckDuckGoHtml(searchQuery);
 
-            // Fallback to DDG Lite if HTML fails (often bypasses captcha)
-            if (results.length === 0) {
-                results = await searchDuckDuckGoLite(searchQuery);
-            }
-
-            // Fallback to Google Scraper
+            // Second fallback if DDG fails?
             if (results.length === 0) {
                 results = await searchGoogleScraper(searchQuery);
             }
@@ -238,57 +233,5 @@ export async function fetchAndProcessUrl(url: string): Promise<string> {
         return text.slice(0, 4000);
     } catch (e) {
         return "";
-    }
-}
-
-async function searchDuckDuckGoLite(query: string): Promise<SearchResult[]> {
-    try {
-        const formData = new URLSearchParams();
-        formData.append('q', query);
-
-        const res = await fetch('https://lite.duckduckgo.com/lite/', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
-
-        if (!res.ok) return [];
-
-        const html = await res.text();
-        const $ = cheerio.load(html);
-        const results: SearchResult[] = [];
-
-        // Lite has table rows. 
-        // Tricky structure. Usually: 
-        // <tr><td><a href="...">Title</a></td></tr>
-        // <tr><td>Snippet</td></tr>
-
-        const rows = $('table').last().find('tr');
-
-        let currentTitle = '';
-        let currentUrl = '';
-
-        rows.each((i, el) => {
-            const link = $(el).find('a.result-link');
-            if (link.length > 0) {
-                currentTitle = link.text().trim();
-                currentUrl = link.attr('href') || '';
-            } else {
-                const snippet = $(el).find('td.result-snippet').text().trim();
-                if (snippet && currentTitle && currentUrl) {
-                    results.push({ title: currentTitle, url: currentUrl, content: snippet });
-                    currentTitle = '';
-                    currentUrl = '';
-                }
-            }
-        });
-
-        return results;
-    } catch (e) {
-        console.error("DDG Lite search failed", e);
-        return [];
     }
 }

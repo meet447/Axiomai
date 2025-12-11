@@ -1,30 +1,5 @@
 import { openai, MODELS } from '../llm';
-import { SEARCH_QUERY_PROMPT, RELATED_QUESTION_PROMPT, CLARIFICATION_PROMPT } from './prompts';
-
-export async function generateClarificationQuestions(
-    query: string,
-    history: any[]
-): Promise<string[]> {
-    try {
-        const response = await openai.chat.completions.create({
-            model: MODELS.fast,
-            messages: [
-                {
-                    role: 'user',
-                    content: CLARIFICATION_PROMPT(query, JSON.stringify(history || [])),
-                },
-            ],
-            stream: false,
-        });
-
-        const text = response.choices[0].message.content || '';
-        if (text.trim() === '[]') return [];
-        return parseList(text);
-    } catch (error) {
-        console.error("Error generating clarification questions:", error);
-        return [];
-    }
-}
+import { SEARCH_QUERY_PROMPT, RELATED_QUESTION_PROMPT } from './prompts';
 
 export async function generateSearchQueries(
     userQuery: string,
