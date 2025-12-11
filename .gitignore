@@ -1,15 +1,33 @@
-frontend/node_modules
-frontend/.next
-frontend/.swc
-frontend/.next/
-frontend/.swc/
-.next/
-*.DS_Store
-*.pyc
-backend/test.py
-backend/test2.py
+# General
+.DS_Store
+*.log
+.idea/
+.vscode/
+
+# Node / Web
+web/node_modules
+web/.next
+web/.swc
+web/.next/
+web/.swc/
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 *.env
-*.env.local
-*.env.development
-*.env.production
-test.json
+*.env.*
+
+# Exceptions (keep examples)
+!.env.example
