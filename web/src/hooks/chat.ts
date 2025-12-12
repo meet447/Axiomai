@@ -246,42 +246,22 @@ export const useChat = () => {
 
       setStreamingMessage(state);
 
-      const response = await fetch(`${BASE_URL}/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": getUserId(),
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      // ... rest of the stream handling
-      if (!response.body) return;
-      const reader = response.body.getReader();
-
-      const parser = createParser({
-        onEvent: (event: any) => {
-          if (event.type === 'event') {
-            try {
+      await streamChat({
+        request: request,
+        onMessage: (event) => {
+          try {
+            if (event.data) {
               const data = JSON.parse(event.data);
-              // console.log("Parsed Event:", data.event);
               handleEvent(data, state);
-            } catch (e) {
-              console.error("Event parsing error", e);
+
+              // Force update on every chunk
+              setStreamingMessage({ ...state });
             }
+          } catch (e) {
+            console.error("Error handling stream message", e);
           }
         }
       });
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        parser.feed(new TextDecoder().decode(value));
-      }
     },
   });
 
