@@ -100,7 +100,7 @@ export function Sidebar() {
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="default" size="icon" className="h-9 w-9" onClick={handleNewChat}>
+                                <Button size="icon" className="h-9 w-9 bg-tint hover:bg-tint/80 text-white" onClick={handleNewChat}>
                                     <Plus className="w-4 h-4" />
                                     <span className="sr-only">New Chat</span>
                                 </Button>
@@ -109,7 +109,7 @@ export function Sidebar() {
                         </Tooltip>
                     </TooltipProvider>
                 ) : (
-                    <Button className="w-full justify-start space-x-2 shadow-sm font-semibold h-10 px-2" onClick={handleNewChat}>
+                    <Button className="w-full justify-start space-x-2 shadow-sm font-semibold h-10 px-2 bg-tint hover:bg-tint/80 text-white" onClick={handleNewChat}>
                         <Plus className="w-4 h-4" />
                         <span>New Chat</span>
                     </Button>
