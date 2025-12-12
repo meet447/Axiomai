@@ -3,6 +3,7 @@
 An open-source AI-powered answer engine built with Next.js, featuring intelligent search, multi-model support, and expert research mode.
 
 ---
+<img width="1465" height="748" alt="image" src="https://github.com/user-attachments/assets/24d4d553-ca73-4be9-8055-c636671686ba" />
 
 ## Features
 
