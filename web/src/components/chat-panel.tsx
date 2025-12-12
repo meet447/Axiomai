@@ -89,10 +89,11 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
   }, [threadId, thread, setMessages, setThreadId]);
 
   useEffect(() => {
-    if (messages.length == 0) {
+    if (!threadId && !queryMessage) {
       setThreadId(null);
+      setMessages([]);
     }
-  }, [messages, setThreadId]);
+  }, [threadId, queryMessage, setThreadId, setMessages]);
 
   return (
     <>
