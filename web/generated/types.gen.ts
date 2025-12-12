@@ -85,6 +85,7 @@ export type ChatRequest = {
   agentic?: boolean;
   saveToHistory?: boolean;
   focusMode?: string;
+  articleMode?: boolean;
 };
 
 export type ChatResponseEvent = {

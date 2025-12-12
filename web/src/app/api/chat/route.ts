@@ -21,6 +21,7 @@ interface ChatRequest {
     focusMode: string;
     agentic: boolean;
     saveToHistory?: boolean;
+    articleMode?: boolean;
 }
 
 function formatContext(results: SearchResult[]): string {
@@ -399,16 +400,115 @@ async function handleAgenticMode(
     sendEvent(controller, 'stream-end', { thread_id: newThreadId ?? -1 });
 }
 
+
+async function handleArticleMode(
+    query: string,
+    widthContext: boolean, // If true, we research first
+    controller: ReadableStreamDefaultController,
+    userId: string,
+    threadId?: number,
+    saveToHistory: boolean = false
+) {
+    sendEvent(controller, 'begin-stream', { event_type: 'begin-stream', query });
+
+    // 0. Extract Search Query
+    // The query might be a long instruction prompt. We need a clean keyword query for the search engine.
+    let searchQuery = query;
+    try {
+        const extractResp = await openai.chat.completions.create({
+            model: MODELS.fast,
+            messages: [
+                { role: 'system', content: "You are a helper that extracts search queries. output ONLY the proper search query for the user's topic. Do not include 'Research', 'Write', etc." },
+                { role: 'user', content: `Extract the main news topic as a search query from this prompt: "${query}"` }
+            ]
+        });
+        const extracted = extractResp.choices[0].message.content?.trim();
+        if (extracted) {
+            searchQuery = extracted.replace(/^"|"$/g, ''); // Remove quotes if any
+        }
+    } catch (e) {
+        console.warn("Failed to extract search query, using original", e);
+    }
+
+    // 1. Search Top 5 Sites
+    const searchResults = await performSearch(searchQuery, 5, 'web');
+
+    // 2. Fetch Content
+    const contentTasks = searchResults.results.slice(0, 5).map(async (res) => {
+        try {
+            const content = await fetchAndProcessUrl(res.url);
+            return { ...res, content }; // Enhance result with full content
+        } catch (e) {
+            console.error(`Failed to fetch ${res.url}`, e);
+            return { ...res, content: "" };
+        }
+    });
+
+    const detailedResults = await Promise.all(contentTasks);
+
+    // Filter out empty
+    const validResults = detailedResults.filter(r => r.content && r.content.length > 200);
+
+    // 3. Format Context
+    const context = validResults.map((r, i) => `
+    [SOURCE ${i + 1}]: ${r.title}
+    URL: ${r.url}
+    CONTENT:
+    ${r.content.slice(0, 8000)} // Limit context per source
+    `).join('\n\n----------------\n\n');
+
+    // Send sources for UI citation
+    const uniqueSources = Array.from(new Map(validResults.map(s => [s.url, s])).values());
+    sendEvent(controller, 'search-results', { results: uniqueSources, images: [] });
+
+    // 4. Generate Article
+    const prompt = `
+    You are an expert journalist. Write a comprehensive, high-quality news article based ONLY on the provided research context.
+    
+    Subject: ${query}
+    
+    Instructions:
+    - Write a compelling headline (if not provided in subject) or just start with the dateline.
+    - Use a professional, objective tone. No "I will write" or "Here is the article".
+    - Structure with an Introduction, multiple detailed sections, and a Conclusion.
+    - Cite sources using [1], [2] notation where appropriate.
+    - If the context doesn't cover the topic, say so instead of hallucinating.
+    
+    Research Context:
+    ${context}
+    `;
+
+    const stream = await openai.chat.completions.create({
+        model: MODELS.powerful, // Use best model for writing
+        messages: [{ role: 'user', content: prompt }],
+        stream: true
+    });
+
+    let fullResponse = "";
+    await streamChunks(stream, controller, (t) => fullResponse += t);
+
+    sendEvent(controller, 'final-message', { message: fullResponse });
+
+    // Usually articles are ephemeral, but if saveToHistory is passed, we save.
+    let newThreadId = threadId;
+    if (saveToHistory) {
+        newThreadId = await saveChat(userId, threadId, query, fullResponse, uniqueSources, []);
+    }
+    sendEvent(controller, 'stream-end', { thread_id: newThreadId ?? -1 });
+}
+
 export async function POST(req: NextRequest) {
     try {
         const payload: ChatRequest = await req.json();
-        const { query, history, model, pro_search, focusMode, agentic, thread_id, saveToHistory = true } = payload;
+        const { query, history, model, pro_search, focusMode, agentic, thread_id, saveToHistory = true, articleMode } = payload;
         const userId = req.headers.get('x-user-id') || 'anonymous';
 
         const stream = new ReadableStream({
             async start(controller) {
                 try {
-                    if (agentic) {
+                    if (articleMode) {
+                        await handleArticleMode(query, true, controller, userId, thread_id, saveToHistory);
+                    } else if (agentic) {
                         await handleAgenticMode(query, history, controller, userId, thread_id, saveToHistory);
                     } else if (pro_search) {
                         await handleExpertMode(query, history, focusMode, controller, userId, thread_id, saveToHistory);

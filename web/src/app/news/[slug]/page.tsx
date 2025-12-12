@@ -31,12 +31,12 @@ export default function NewsArticlePage({ params }: { params: { slug: string } }
             Do not include a title/headline at the top.
             Do not use "I" or "Here is a report". Write objectively like a journalist. 
             Include citations.`,
-                { agentic: true, saveToHistory: false });
+                { articleMode: true, saveToHistory: false });
         }
     }, [title, handleSend]);
 
     useEffect(() => {
-        if (streamingMessage) {
+        if (streamingMessage?.content) {
             setArticleContent(streamingMessage.content);
             setIsLoading(false);
         }

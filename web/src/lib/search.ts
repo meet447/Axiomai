@@ -257,6 +257,31 @@ async function searchSerperImages(query: string): Promise<string[]> {
 import TurndownService from 'turndown';
 
 export async function fetchAndProcessUrl(url: string): Promise<string> {
+    // 1. Try Serper Scrape (if enabled)
+    if (SEARCH_PROVIDER === 'serper' && SEARCH_API_KEY) {
+        try {
+            const res = await fetch('https://scrape.serper.dev', {
+                method: 'POST',
+                headers: {
+                    'X-API-KEY': SEARCH_API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: url })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.markdown) return data.markdown;
+                if (data.text) return data.text; // Fallback to text if markdown missing
+            } else {
+                console.warn(`Serper scrape failed for ${url}: ${res.status} ${res.statusText}. Falling back to local scrape.`);
+            }
+        } catch (e) {
+            console.error("Serper scrape error", e);
+        }
+    }
+
+    // 2. Local Fallback (Cheerio + Turndown)
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
@@ -292,11 +317,7 @@ export async function fetchAndProcessUrl(url: string): Promise<string> {
             bulletListMarker: '-'
         });
 
-        // Remove text from elements we extracted but didn't want? 
-        // Cheerio removal handles DOM. Turndown handles converting what's left.
-        // Let's pass the body html
         const bodyHtml = $('body').html() || "";
-
         let markdown = turndownService.turndown(bodyHtml);
 
         // Clean up excessive newlines
@@ -306,7 +327,7 @@ export async function fetchAndProcessUrl(url: string): Promise<string> {
             console.warn(`Fetched content for ${url} is too short. Possible blockage.`);
         }
 
-        return markdown.slice(0, 15000); // Increased slice limit for markdown
+        return markdown.slice(0, 15000);
     } catch (e: any) {
         console.error(`Fetch error for ${url}:`, e.message);
         return "";
