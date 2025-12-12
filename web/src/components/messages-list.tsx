@@ -1,7 +1,7 @@
 import { AssistantMessageContent } from "./assistant-message";
 import { Separator } from "./ui/separator";
 import { UserMessageContent } from "./user-message";
-import { memo } from "react";
+import React, { memo } from "react";
 import {
   AgentSearchFullResponse,
   ChatMessage,
@@ -29,17 +29,16 @@ const MessagesList = ({
         message.role === MessageRole.USER ? (
           <UserMessageContent key={index} message={message} />
         ) : (
-          <>
+          <React.Fragment key={index}>
             {message.agent_response && (
               <ProSearchRender streamingProResponse={message.agent_response} />
             )}
             <AssistantMessageContent
-              key={index}
               message={message}
               onRelatedQuestionSelect={onRelatedQuestionSelect}
             />
             {index !== messages.length - 1 && <Separator />}
-          </>
+          </React.Fragment>
         ),
       )}
       {isStreamingProSearch && (
