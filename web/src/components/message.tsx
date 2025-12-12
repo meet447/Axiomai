@@ -39,6 +39,7 @@ const Citation = memo(({ index, source }: { index: number; source: SearchResult 
       <HoverCardContent className="w-80 p-3" align="start">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`https://www.google.com/s2/favicons?sz=64&domain=${source.url}`}
               className="w-4 h-4 rounded-full"
@@ -57,6 +58,7 @@ const Citation = memo(({ index, source }: { index: number; source: SearchResult 
     </HoverCard>
   );
 });
+Citation.displayName = "Citation";
 
 const Text = ({
   children,

@@ -30,6 +30,7 @@ export function ImageSection({ images }: { images: string[] }) {
           >
             <img
               src={image}
+              alt={image}
               className="w-full object-cover object-top h-full max-h-[80vh]"
             />
           </a>

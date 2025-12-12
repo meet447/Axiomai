@@ -80,7 +80,7 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
       hasRun.current = true;
       handleSend(queryMessage);
     }
-  }, [queryMessage]);
+  }, [queryMessage, handleSend, setThreadId]);
 
   useEffect(() => {
     if (!thread) return;

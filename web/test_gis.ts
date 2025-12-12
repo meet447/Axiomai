@@ -9,7 +9,7 @@ async function run() {
         filterOutDomains: ['pinterest.com']
     };
 
-    gis(opts, (error, results) => {
+    gis(opts, (error: any, results: any[]) => {
         if (error) {
             console.error("GIS Error:", error);
         } else {
