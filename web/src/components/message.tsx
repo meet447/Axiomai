@@ -2,7 +2,7 @@ import React, { FC, memo, useEffect, useState, useMemo } from "react";
 import { MemoizedReactMarkdown } from "./markdown";
 import rehypeRaw from "rehype-raw";
 
-import _ from "lodash";
+import chunk from "lodash/chunk";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "./ui/skeleton";
 import { ChatMessage } from "../../generated";
@@ -15,7 +15,7 @@ import {
 
 function chunkString(str: string): string[] {
   const words = str.split(" ");
-  const chunks = _.chunk(words, 2).map((chunk) => chunk.join(" ") + " ");
+  const chunks = chunk(words, 2).map((chunk) => chunk.join(" ") + " ");
   return chunks;
 }
 

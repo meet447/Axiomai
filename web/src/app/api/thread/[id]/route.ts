@@ -26,7 +26,8 @@ export async function GET(
             return NextResponse.json({ error: "Thread not found" }, { status: 404 });
         }
 
-        if (userId && thread.userId !== userId && !(thread as any).isPublic) {
+        // Security: Only allow access if thread is public OR user is the owner
+        if (!thread.isPublic && thread.userId !== userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
         }
 

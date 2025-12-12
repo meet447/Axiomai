@@ -9,7 +9,6 @@ import {
   MessageRole,
   SearchResult,
 } from "../../generated";
-import _ from "lodash";
 import {
   Accordion,
   AccordionContent,

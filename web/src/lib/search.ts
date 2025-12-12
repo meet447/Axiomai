@@ -256,6 +256,13 @@ async function searchSerperImages(query: string): Promise<string[]> {
 
 import TurndownService from 'turndown';
 
+// Reusable TurndownService instance
+const turndownService = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+    bulletListMarker: '-'
+});
+
 export async function fetchAndProcessUrl(url: string): Promise<string> {
     // 1. Try Serper Scrape (if enabled)
     if (SEARCH_PROVIDER === 'serper' && SEARCH_API_KEY) {
@@ -310,13 +317,7 @@ export async function fetchAndProcessUrl(url: string): Promise<string> {
         // Remove unwanted elements
         $('script, style, noscript, header, footer, nav, meta, svg, button, iframe, .ad, .ads, .advertisement').remove();
 
-        // Convert to Markdown
-        const turndownService = new TurndownService({
-            headingStyle: 'atx',
-            codeBlockStyle: 'fenced',
-            bulletListMarker: '-'
-        });
-
+        // Convert to Markdown using the module-level turndownService
         const bodyHtml = $('body').html() || "";
         let markdown = turndownService.turndown(bodyHtml);
 

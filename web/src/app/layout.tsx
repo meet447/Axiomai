@@ -2,14 +2,12 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import Providers from "@/providers";
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { GeistSans } from "geist/font/sans";
 import { JetBrains_Mono as Mono } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Analytics } from "@vercel/analytics/react";
 import { Navbar } from "@/components/nav";
-import { Footer } from "@/components/footer";
 import { Sidebar } from "@/components/sidebar";
 
 const mono = Mono({
@@ -65,7 +63,6 @@ export default function RootLayout({
                 </main>
               </div>
               <Toaster />
-              {/* <Footer /> */}
               <Analytics />
             </ThemeProvider>
           </Providers>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { openai, MODELS } from '@/lib/llm';
-import { performSearch, SearchResult } from '@/lib/search';
+import { performSearch, SearchResult, fetchAndProcessUrl } from '@/lib/search';
 import {
     CHAT_PROMPT,
     HISTORY_QUERY_REPHRASE,
@@ -268,7 +268,7 @@ async function handleExpertMode(
     }
 }
 
-import { fetchAndProcessUrl } from '@/lib/search';
+
 
 async function handleArticleMode(
     query: string,

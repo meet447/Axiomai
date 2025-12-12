@@ -15,7 +15,7 @@ import {
   RabbitIcon,
 } from "lucide-react";
 import { useConfigStore } from "@/stores";
-import _ from "lodash";
+import pick from "lodash/pick";
 
 type Model = {
   name: string;
@@ -50,7 +50,7 @@ export const modelMap: Record<string, Model> = {
 };
 
 // Filter cloud models explicitly by their keys (optional)
-const cloudModelMap: Record<string, Model> = _.pick(modelMap, ["fast", "powerful", "hyper"]);
+const cloudModelMap: Record<string, Model> = pick(modelMap, ["fast", "powerful", "hyper"]);
 
 const ModelItem: React.FC<{ model: Model }> = ({ model }) => (
   <SelectItem
