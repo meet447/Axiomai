@@ -156,254 +156,123 @@ async function handleExpertMode(
     // For now, let's respect focusMode in searches.
 
     // 3. Generate Plan
-    const plan = await generatePlan(currentQuery);
-    const simplifiedPlan = plan.map(p => p.step);
-    sendEvent(controller, 'agent-query-plan', { steps: simplifiedPlan });
-
-    const stepContexts: Record<number, string> = {};
-    const stepSources: Record<number, SearchResult[]> = {};
-    const stepImages: Record<number, string[]> = {};
-
-    // 4. Execute Steps
-    const lastStepId = plan[plan.length - 1]?.id;
-
-    for (const step of plan) {
-        if (step.id === lastStepId) continue;
-
-        // Build context from dependencies
-        const prevContexts = step.dependencies
-            .filter(depId => stepContexts[depId])
-            .map(depId => `Step: ${plan.find(p => p.id === depId)?.step}\nContext: ${stepContexts[depId]}`)
-            .join('\n');
-
-        // Generate queries
-        const relatedQueries = await generateSearchQueries(currentQuery, prevContexts, step.step);
-        sendEvent(controller, 'agent-search-queries', { step_number: step.id, queries: relatedQueries });
-
-        // Search in parallel
-        let searchResults: any[] = [];
-        if (focusMode !== 'writing') {
-            searchResults = await Promise.all(relatedQueries.map(q => performSearch(q, 4, focusMode)));
-        }
-
-        const allResults: SearchResult[] = [];
-        const allImages: string[] = [];
-        // eslint-disable-next-line
-        searchResults.forEach(res => {
-            allResults.push(...res.results);
-            allImages.push(...res.images);
-        });
-
-
-        // Store
-        stepSources[step.id] = allResults; // Should filter unique urls if crucial
-        stepImages[step.id] = allImages;
-        stepContexts[step.id] = formatContext(allResults);
-
-        sendEvent(controller, 'agent-read-results', { step_number: step.id, results: allResults });
-    }
-
-    // 5. Final Synthesis
-    const lastStep = plan.find(s => s.id === lastStepId);
-    if (!lastStep) {
-        // Fallback if plan empty
-        sendEvent(controller, 'final-response', { response: "Failed to generate plan." });
-        return;
-    }
-
-    // Combine contexts
-    const dependencies = lastStep.dependencies;
-    const combinedContexts = dependencies
-        .filter(depId => stepContexts[depId])
-        .map(depId => `Step: ${plan.find(p => p.id === depId)?.step}\nContext: ${stepContexts[depId]}`)
-        .join('\n\n');
-
-    // Gather sources/images for final event
-    const combinedSources: SearchResult[] = [];
-    const combinedImages: string[] = [];
-    dependencies.forEach(depId => {
-        if (stepSources[depId]) combinedSources.push(...stepSources[depId]);
-        if (stepImages[depId]) combinedImages.push(...stepImages[depId]);
-    });
-
-    // Dedupe logic simplified
-    const uniqueSources = Array.from(new Map(combinedSources.map(s => [s.url, s])).values());
-    const uniqueImages = Array.from(new Set(combinedImages));
-
-    sendEvent(controller, 'search-results', { results: uniqueSources, images: uniqueImages });
-
-    // Generate Final Answer
-    const finalPrompt = AGENT_QUERY_PROMPT(currentQuery, combinedContexts, lastStep.step);
-    const finalStream = await openai.chat.completions.create({
-        model: MODELS.powerful,
-        messages: [{ role: 'user', content: finalPrompt }],
-        stream: true
-    });
-
-    let finalResponse = "";
-    await streamChunks(finalStream, controller, (t) => finalResponse += t);
-
-    sendEvent(controller, 'final-response', { response: finalResponse });
-
-    // 6. Related Questions
-    const finalRelated = await generateRelatedQuestions(currentQuery, finalResponse);
-    sendEvent(controller, 'related-queries', { related_queries: finalRelated });
-
-    sendEvent(controller, 'related-queries', { related_queries: finalRelated });
-
-    sendEvent(controller, 'related-queries', { related_queries: finalRelated });
-
-    let newThreadId = threadId;
-    if (saveToHistory) {
-        newThreadId = await saveChat(userId, threadId, query, finalResponse, uniqueSources, uniqueImages);
-    }
-    sendEvent(controller, 'stream-end', { thread_id: newThreadId ?? -1 });
-}
-
-
-
-import { fetchAndProcessUrl } from '@/lib/search';
-import { REACT_AGENT_PROMPT } from '@/lib/agent/prompts';
-
-async function handleAgenticMode(
-    query: string,
-    history: any[],
-    controller: ReadableStreamDefaultController,
-    userId: string,
-    threadId?: number,
-    saveToHistory: boolean = true
-) {
-    sendEvent(controller, 'begin-stream', { event_type: 'begin-stream', query });
-
-    let currentQuery = query;
-    // Optional: Rephrase logic here if needed (skipping for brevity)
-
-    let steps = 0;
-    const maxSteps = 10;
-    let agentHistory: string[] = [];
-    let finalAnswer = "";
-
-    // 0. Generate Initial Plan (Intelligence Boost)
+    let simplifiedPlan: string[] = [];
     try {
         const plan = await generatePlan(currentQuery);
-        const planText = plan.map(p => `${p.id + 1}. ${p.step}`).join('\n');
-        agentHistory.push(`**SUGGESTED PLAN:**\n${planText}\n(You can follow this plan or adapt it based on new findings.)`);
-    } catch (e) {
-        console.warn("Failed to generate initial plan for agent", e);
-    }
+        simplifiedPlan = plan.map(p => p.step);
+        sendEvent(controller, 'agent-query-plan', { steps: simplifiedPlan });
 
-    const allSources: SearchResult[] = [];
+        const stepContexts: Record<number, string> = {};
+        const stepSources: Record<number, SearchResult[]> = {};
+        const stepImages: Record<number, string[]> = {};
 
-    while (steps < maxSteps) {
-        await new Promise(r => setTimeout(r, 2000)); // Rate limit protection
-        steps++;
-        const historyLog = agentHistory.join('\n');
+        // 4. Execute Steps
+        const lastStepId = plan[plan.length - 1]?.id;
 
-        // 1. Think / Decide Action
-        // 1. Think / Decide Action
-        let action: any = {};
-        let attempts = 0;
-
-        while (attempts < 3) {
-            attempts++;
+        for (const step of plan) {
+            if (step.id === lastStepId) continue;
             try {
-                const prompt = REACT_AGENT_PROMPT(currentQuery, historyLog + (attempts > 1 ? `\n\n(System Note: Your previous attempt was invalid JSON. Please output VALID JSON only.)` : ""));
+                // Build context from dependencies
+                const prevContexts = step.dependencies
+                    .filter(depId => stepContexts[depId])
+                    .map(depId => `Step: ${plan.find(p => p.id === depId)?.step}\nContext: ${stepContexts[depId]}`)
+                    .join('\n');
 
-                const completion = await openai.chat.completions.create({
-                    model: MODELS.powerful,
-                    messages: [{ role: 'user', content: prompt }],
-                    stream: false,
+                // Generate queries
+                const relatedQueries = await generateSearchQueries(currentQuery, prevContexts, step.step);
+                sendEvent(controller, 'agent-search-queries', { step_number: step.id, queries: relatedQueries });
+
+                // Search in parallel
+                let searchResults: any[] = [];
+                if (focusMode !== 'writing') {
+                    searchResults = await Promise.all(relatedQueries.map(q => performSearch(q, 4, focusMode)));
+                }
+
+                const allResults: SearchResult[] = [];
+                const allImages: string[] = [];
+                // eslint-disable-next-line
+                searchResults.forEach(res => {
+                    allResults.push(...res.results);
+                    allImages.push(...res.images);
                 });
 
-                const text = completion.choices[0].message.content || "{}";
 
-                // Try parsing
-                try {
-                    action = JSON.parse(text);
-                } catch (e) {
-                    try {
-                        let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                        action = JSON.parse(cleanText);
-                    } catch (e2) {
-                        const match = text.match(/\{[\s\S]*\}/);
-                        if (match) action = JSON.parse(match[0]);
-                    }
-                }
+                // Store
+                stepSources[step.id] = allResults; // Should filter unique urls if crucial
+                stepImages[step.id] = allImages;
+                stepContexts[step.id] = formatContext(allResults);
 
-                // Validate
-                if (action.action && (action.action === 'search' || action.action === 'visit' || action.action === 'answer')) {
-                    break;
-                }
-            } catch (e) {
-                console.error(`Agent attempt ${attempts} failed:`, e);
+                sendEvent(controller, 'agent-read-results', { step_number: step.id, results: allResults });
+            } catch (stepError) {
+                console.error(`Error in step ${step.id}:`, stepError);
+                // Continue to next step
             }
-            // If we are here, we failed. Retry.
         }
 
-        // 2. Stream Action to UI
-        sendEvent(controller, 'agent-action', { step: steps, action: action });
-
-        // 3. Execute Action
-        if (action.action === 'search') {
-            const q = action.query;
-            const res = await performSearch(q, 4, 'web');
-            const summary = res.results.map(r => `[${r.title}](${r.url}): ${r.content}`).join('\n');
-
-            allSources.push(...res.results);
-            agentHistory.push(`Step ${steps}: Searched for "${q}". Found:\n${summary}`);
-
-            // Send observations to UI? 
-            // Ideally we show the user what we found.
-            // But 'agent-read-results' expects a different format. 
-            // Let's rely on 'agent-action' to show intent, then maybe 'search-results' later?
-            // Actually, let's emit a generic log event if we had one.
-            // For now, the UI will just see the action.
-
-        } else if (action.action === 'visit') {
-            const url = action.url;
-            const content = await fetchAndProcessUrl(url);
-            const snippet = content.slice(0, 1000); // Limit context
-            agentHistory.push(`Step ${steps}: Visited ${url}. Content:\n${snippet}...`);
-
-        } else if (action.action === 'answer') {
-            finalAnswer = action.text;
-            break;
-        } else {
-            agentHistory.push(`Step ${steps}: Invalid action generated. trying again.`);
+        // 5. Final Synthesis
+        const lastStep = plan.find(s => s.id === lastStepId);
+        if (!lastStep) {
+            throw new Error("Failed to generate plan.");
         }
+
+        // Combine contexts
+        const dependencies = lastStep.dependencies;
+        const combinedContexts = dependencies
+            .filter(depId => stepContexts[depId])
+            .map(depId => `Step: ${plan.find(p => p.id === depId)?.step}\nContext: ${stepContexts[depId]}`)
+            .join('\n\n');
+
+        // Gather sources/images for final event
+        const combinedSources: SearchResult[] = [];
+        const combinedImages: string[] = [];
+        dependencies.forEach(depId => {
+            if (stepSources[depId]) combinedSources.push(...stepSources[depId]);
+            if (stepImages[depId]) combinedImages.push(...stepImages[depId]);
+        });
+
+        // Dedupe logic simplified
+        const uniqueSources = Array.from(new Map(combinedSources.map(s => [s.url, s])).values());
+        const uniqueImages = Array.from(new Set(combinedImages));
+
+        sendEvent(controller, 'search-results', { results: uniqueSources, images: uniqueImages });
+
+        // Generate Final Answer
+        const finalPrompt = AGENT_QUERY_PROMPT(currentQuery, combinedContexts, lastStep.step);
+        const finalStream = await openai.chat.completions.create({
+            model: MODELS.powerful,
+            messages: [{ role: 'user', content: finalPrompt }],
+            stream: true
+        });
+
+        let finalResponse = "";
+        await streamChunks(finalStream, controller, (t) => finalResponse += t);
+
+        sendEvent(controller, 'final-response', { response: finalResponse });
+
+        // 6. Related Questions
+        const finalRelated = await generateRelatedQuestions(currentQuery, finalResponse);
+        sendEvent(controller, 'related-queries', { related_queries: finalRelated });
+
+        let newThreadId = threadId;
+        if (saveToHistory) {
+            newThreadId = await saveChat(userId, threadId, query, finalResponse, uniqueSources, uniqueImages);
+        }
+        sendEvent(controller, 'stream-end', { thread_id: newThreadId ?? -1 });
+
+    } catch (e: any) {
+        console.error("Expert mode failed", e);
+        sendEvent(controller, 'final-response', { response: "An error occurred during expert research. Falling back to basic mode." });
+        // Fallback to basic mode logic could go here, or just end
+        // check if we can salvage basic mode?
+        // For now, just error out gracefully 
     }
-
-    // 4. Final Response
-    if (!finalAnswer) finalAnswer = "I could not complete the research in time.";
-
-    // Unify sources
-    const uniqueSources = Array.from(new Map(allSources.map(s => [s.url, s])).values());
-    sendEvent(controller, 'search-results', { results: uniqueSources, images: [] });
-
-    // Stream final answer
-    const chunks = finalAnswer.split(/(?=[,.\s])/); // Split by words/punctuation
-    for (const chunk of chunks) {
-        sendEvent(controller, 'text-chunk', { text: chunk });
-        await new Promise(resolve => setTimeout(resolve, 15)); // 15ms delay for typing effect
-    }
-    // sendEvent(controller, 'final-response', { response: finalAnswer }); // Optional, legacy
-
-    const related = await generateRelatedQuestions(currentQuery, finalAnswer);
-    sendEvent(controller, 'related-queries', { related_queries: related });
-
-    // Save Agentic Chat
-    // Save Agentic Chat
-    let newThreadId = threadId;
-    if (saveToHistory) {
-        newThreadId = await saveChat(userId, threadId, query, finalAnswer, uniqueSources, []);
-    }
-    sendEvent(controller, 'stream-end', { thread_id: newThreadId ?? -1 });
 }
 
+import { fetchAndProcessUrl } from '@/lib/search';
 
 async function handleArticleMode(
     query: string,
-    widthContext: boolean, // If true, we research first
+    widthContext: boolean,
     controller: ReadableStreamDefaultController,
     userId: string,
     threadId?: number,
@@ -411,33 +280,27 @@ async function handleArticleMode(
 ) {
     sendEvent(controller, 'begin-stream', { event_type: 'begin-stream', query });
 
-    // 0. Extract Search Query
-    // The query might be a long instruction prompt. We need a clean keyword query for the search engine.
     let searchQuery = query;
     try {
         const extractResp = await openai.chat.completions.create({
             model: MODELS.fast,
             messages: [
-                { role: 'system', content: "You are a helper that extracts search queries. output ONLY the proper search query for the user's topic. Do not include 'Research', 'Write', etc." },
-                { role: 'user', content: `Extract the main news topic as a search query from this prompt: "${query}"` }
+                { role: 'system', content: "You are a helper that extracts search queries. Output ONLY the search query." },
+                { role: 'user', content: `Extract the main news topic as a search query from: "${query}"` }
             ]
         });
         const extracted = extractResp.choices[0].message.content?.trim();
-        if (extracted) {
-            searchQuery = extracted.replace(/^"|"$/g, ''); // Remove quotes if any
-        }
+        if (extracted) searchQuery = extracted.replace(/^"|"$/g, '');
     } catch (e) {
-        console.warn("Failed to extract search query, using original", e);
+        console.warn("Failed to extract search query", e);
     }
 
-    // 1. Search Top 5 Sites
     const searchResults = await performSearch(searchQuery, 5, 'web');
 
-    // 2. Fetch Content
     const contentTasks = searchResults.results.slice(0, 5).map(async (res) => {
         try {
             const content = await fetchAndProcessUrl(res.url);
-            return { ...res, content }; // Enhance result with full content
+            return { ...res, content };
         } catch (e) {
             console.error(`Failed to fetch ${res.url}`, e);
             return { ...res, content: "" };
@@ -445,41 +308,33 @@ async function handleArticleMode(
     });
 
     const detailedResults = await Promise.all(contentTasks);
-
-    // Filter out empty
     const validResults = detailedResults.filter(r => r.content && r.content.length > 200);
 
-    // 3. Format Context
     const context = validResults.map((r, i) => `
-    [SOURCE ${i + 1}]: ${r.title}
-    URL: ${r.url}
-    CONTENT:
-    ${r.content.slice(0, 8000)} // Limit context per source
-    `).join('\n\n----------------\n\n');
+[SOURCE ${i + 1}]: ${r.title}
+URL: ${r.url}
+CONTENT:
+${r.content.slice(0, 8000)}
+`).join('\n\n----------------\n\n');
 
-    // Send sources for UI citation
     const uniqueSources = Array.from(new Map(validResults.map(s => [s.url, s])).values());
     sendEvent(controller, 'search-results', { results: uniqueSources, images: [] });
 
-    // 4. Generate Article
-    const prompt = `
-    You are an expert journalist. Write a comprehensive, high-quality news article based ONLY on the provided research context.
-    
-    Subject: ${query}
-    
-    Instructions:
-    - Write a compelling headline (if not provided in subject) or just start with the dateline.
-    - Use a professional, objective tone. No "I will write" or "Here is the article".
-    - Structure with an Introduction, multiple detailed sections, and a Conclusion.
-    - Cite sources using [1], [2] notation where appropriate.
-    - If the context doesn't cover the topic, say so instead of hallucinating.
-    
-    Research Context:
-    ${context}
-    `;
+    const prompt = `You are an expert journalist. Write a comprehensive news article based ONLY on:
+
+Subject: ${query}
+
+Instructions:
+- Professional, objective tone. No "I will write" or "Here is".
+- Structure with intro, detailed sections, and conclusion.
+- Cite sources using [1], [2] notation.
+- If context is insufficient, say so.
+
+Research Context:
+${context}`;
 
     const stream = await openai.chat.completions.create({
-        model: MODELS.powerful, // Use best model for writing
+        model: MODELS.powerful,
         messages: [{ role: 'user', content: prompt }],
         stream: true
     });
@@ -487,9 +342,8 @@ async function handleArticleMode(
     let fullResponse = "";
     await streamChunks(stream, controller, (t) => fullResponse += t);
 
-    sendEvent(controller, 'final-message', { message: fullResponse });
+    sendEvent(controller, 'final-response', { message: fullResponse });
 
-    // Usually articles are ephemeral, but if saveToHistory is passed, we save.
     let newThreadId = threadId;
     if (saveToHistory) {
         newThreadId = await saveChat(userId, threadId, query, fullResponse, uniqueSources, []);
@@ -500,7 +354,7 @@ async function handleArticleMode(
 export async function POST(req: NextRequest) {
     try {
         const payload: ChatRequest = await req.json();
-        const { query, history, model, pro_search, focusMode, agentic, thread_id, saveToHistory = true, articleMode } = payload;
+        const { query, history, model, pro_search, focusMode, thread_id, saveToHistory = true, articleMode } = payload;
         const userId = req.headers.get('x-user-id') || 'anonymous';
 
         const stream = new ReadableStream({
@@ -508,8 +362,6 @@ export async function POST(req: NextRequest) {
                 try {
                     if (articleMode) {
                         await handleArticleMode(query, true, controller, userId, thread_id, saveToHistory);
-                    } else if (agentic) {
-                        await handleAgenticMode(query, history, controller, userId, thread_id, saveToHistory);
                     } else if (pro_search) {
                         await handleExpertMode(query, history, focusMode, controller, userId, thread_id, saveToHistory);
                     } else {

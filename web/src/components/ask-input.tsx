@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "./ui/button";
 import { ArrowUp } from "lucide-react";
 import ProToggle from "./pro-toggle";
-import AgenticToggle from "./agentic-toggle";
+
 
 import { ModelSelection } from "./model-selection";
 import { FocusSelector } from "./focus-selector";
@@ -31,7 +31,7 @@ const InputBar = ({
           <FocusSelector />
         </div>
         <div className="flex items-center gap-2">
-          <AgenticToggle />
+
           <ProToggle />
           <Button
             type="submit"
@@ -67,7 +67,7 @@ const FollowingUpInput = ({
       </div>
       <div className="flex items-center gap-2">
         <FocusSelector />
-        <AgenticToggle />
+
         <ProToggle />
         <Button
           type="submit"

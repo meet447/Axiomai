@@ -25,26 +25,6 @@ const useAutoScroll = (ref: React.RefObject<HTMLDivElement>) => {
   }, [messages, ref]);
 };
 
-const useAutoResizeInput = (
-  ref: React.RefObject<HTMLDivElement>,
-  setWidth: (width: number) => void,
-) => {
-  const { messages } = useChatStore();
-
-  useEffect(() => {
-    const updatePosition = () => {
-      if (ref.current) {
-        setWidth(ref.current.scrollWidth);
-      }
-    };
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [messages, ref, setWidth]);
-};
-
 const useAutoFocus = (ref: React.RefObject<HTMLTextAreaElement>) => {
   useEffect(() => {
     ref.current?.focus();
@@ -65,13 +45,10 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
   const { messages, setMessages, setThreadId } = useChatStore();
   const { data: thread, isLoading, error } = useChatThread(threadId);
 
-  const [width, setWidth] = useState(0);
-  const messagesRef = useRef<HTMLDivElement | null>(null);
   const messageBottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useAutoScroll(messageBottomRef);
-  useAutoResizeInput(messagesRef, setWidth);
   useAutoFocus(inputRef);
 
   useEffect(() => {
@@ -103,7 +80,7 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
             <LoaderIcon className="animate-spin w-8 h-8" />
           </div>
         ) : (
-          <div ref={messagesRef} className="pt-10 pb-40 w-full relative">
+          <div className="pt-10 pb-40 w-full relative">
             <MessagesList
               messages={messages}
               streamingMessage={streamingMessage}
@@ -112,10 +89,7 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
               onRelatedQuestionSelect={handleSend}
             />
             <div ref={messageBottomRef} className="h-0" />
-            <div
-              className="bottom-12 fixed px-2 max-w-screen-md justify-center items-center md:px-2"
-              style={{ width: `${width}px` }}
-            >
+            <div className="fixed bottom-12 left-1/2 -translate-x-1/2 w-full max-w-screen-md px-4 md:px-8">
               <AskInput isFollowingUp sendMessage={handleSend} />
             </div>
           </div>

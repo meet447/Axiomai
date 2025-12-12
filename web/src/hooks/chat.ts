@@ -149,6 +149,7 @@ export const useChat = () => {
         }
         return;
       case StreamEvent.AGENT_QUERY_PLAN:
+        setIsStreamingProSearch(true); // Trigger Pro Search UI
         const { steps } = eventItem.data as AgentQueryPlanStream;
         steps_details =
           steps?.map((step, index) => ({
