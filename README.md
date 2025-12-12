@@ -4,6 +4,8 @@ An open-source AI-powered answer engine built with Next.js, featuring intelligen
 
 ---
 <img width="1465" height="748" alt="image" src="https://github.com/user-attachments/assets/24d4d553-ca73-4be9-8055-c636671686ba" />
+<img width="1452" height="744" alt="image" src="https://github.com/user-attachments/assets/b8da6ab1-ce05-4338-92b5-922e53f5ed8b" />
+
 
 ## Features
 
