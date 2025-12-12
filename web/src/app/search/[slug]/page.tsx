@@ -11,7 +11,7 @@ export default function ChatPage() {
   const threadId = parseInt(slug as string, 10);
 
   return (
-    <div className="h-screen">
+    <div className="flex flex-col min-h-screen w-full">
       <div className="flex grow h-full mx-auto max-w-screen-md px-4 md:px-8">
         <Suspense>
           <ChatPanel threadId={threadId} />

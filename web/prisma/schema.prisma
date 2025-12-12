@@ -1,0 +1,58 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  threads   Thread[]
+  collections Collection[]
+}
+
+model Thread {
+  id        Int      @id @default(autoincrement())
+  title     String
+  isPublic  Boolean  @default(false)
+  sharePath String?  @unique @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  messages  Message[]
+  collections Collection[] // Implicit m-n
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  role      String   // "user", "assistant"
+  content   String
+  sources   Json?    // Store sources, related queries, etc.
+  createdAt DateTime @default(now())
+  threadId  Int
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+}
+
+model Collection {
+  id        Int      @id @default(autoincrement())
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  threads   Thread[]
+  createdAt DateTime @default(now())
+}
+
+model TrendingItem {
+  id        Int      @id @default(autoincrement())
+  title     String
+  summary   String
+  url       String
+  source    String?
+  image     String?
+  createdAt DateTime @default(now())
+}

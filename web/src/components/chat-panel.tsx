@@ -102,7 +102,7 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
             <LoaderIcon className="animate-spin w-8 h-8" />
           </div>
         ) : (
-          <div ref={messagesRef} className="pt-10 w-full relative">
+          <div ref={messagesRef} className="pt-10 pb-40 w-full relative">
             <MessagesList
               messages={messages}
               streamingMessage={streamingMessage}

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Analytics } from "@vercel/analytics/react";
 import { Navbar } from "@/components/nav";
 import { Footer } from "@/components/footer";
+import { Sidebar } from "@/components/sidebar";
 
 const mono = Mono({
   subsets: ["latin"],
@@ -48,16 +49,23 @@ export default function RootLayout({
           className={cn("antialiased", GeistSans.className, mono.className)}
         >
           <Providers>
+
+
             <ThemeProvider
               attribute="class"
               defaultTheme="dark"
               enableSystem
               disableTransitionOnChange
             >
-              <Navbar />
-              {children}
+              <div className="flex w-full">
+                <Sidebar />
+                <main className="flex-1 w-full overflow-y-auto">
+                  <Navbar />
+                  {children}
+                </main>
+              </div>
               <Toaster />
-              <Footer />
+              {/* <Footer /> */}
               <Analytics />
             </ThemeProvider>
           </Providers>

@@ -30,6 +30,7 @@ import { useState } from "react";
 import { useConfigStore, useChatStore } from "@/stores";
 import { env } from "../env.mjs";
 import { useRouter } from "next/navigation";
+import { getUserId } from "@/lib/user";
 
 const BASE_URL = env.NEXT_PUBLIC_API_URL;
 
@@ -44,6 +45,7 @@ const streamChat = async ({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-user-id": getUserId(),
     },
     keepalive: true,
     openWhenHidden: true,
@@ -51,10 +53,9 @@ const streamChat = async ({
     onmessage: onMessage,
     onerror: (error) => {
       console.error("Stream error:", error);
-      throw error; // Rethrow to stop retry if needed, or handle specifically
+      throw error;
     },
     onclose: () => {
-      // Stop retry on normal close
       return;
     }
   });

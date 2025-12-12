@@ -30,10 +30,10 @@ export function Navbar() {
 
   return (
     <header className="w-full flex fixed p-1 z-50 px-2 bg-background/95 justify-between items-center">
-      <div className="flex items-center gap-2">
-        <Link href="/" passHref onClick={() => (location.href = "/")}>
-            {onHomePage ? <TextLogo /> : <NewChatButton />}
-        </Link>
+      <div className="flex gap-2 items-center">
+        {/* <Link href="/" className="flex items-center gap-1">
+          <span className="text-2xl font-bold">Axiom</span>
+        </Link> */}
       </div>
       <div className="flex items-center gap-4">
         <ModeToggle />

@@ -8,6 +8,7 @@ import {
 } from '@/lib/agent/prompts';
 import { generatePlan } from '@/lib/agent/plan';
 import { generateSearchQueries, generateRelatedQuestions } from '@/lib/agent/questions';
+import { saveChat } from '@/lib/persistence';
 
 export const runtime = 'nodejs'; // Use nodejs runtime for robust scraping/cheerio
 
@@ -51,7 +52,9 @@ async function handleBasicMode(
     history: any[],
     model: string,
     focusMode: string,
-    controller: ReadableStreamDefaultController
+    controller: ReadableStreamDefaultController,
+    userId: string,
+    threadId?: number
 ) {
     let currentQuery = query;
 
@@ -106,14 +109,17 @@ async function handleBasicMode(
 
     // 7. Final Message & End
     sendEvent(controller, 'final-message', { message: fullResponse });
-    sendEvent(controller, 'stream-end', { thread_id: 125 }); // Mock thread ID since we don't have DB
+    const newThreadId = await saveChat(userId, threadId, query, fullResponse, searchResults.results, searchResults.images);
+    sendEvent(controller, 'stream-end', { thread_id: newThreadId });
 }
 
 async function handleExpertMode(
     query: string,
     history: any[],
     focusMode: string,
-    controller: ReadableStreamDefaultController
+    controller: ReadableStreamDefaultController,
+    userId: string,
+    threadId?: number
 ) {
     // ... setup
     let currentQuery = query;
@@ -236,7 +242,10 @@ async function handleExpertMode(
     const finalRelated = await generateRelatedQuestions(currentQuery, finalResponse);
     sendEvent(controller, 'related-queries', { related_queries: finalRelated });
 
-    sendEvent(controller, 'stream-end', { thread_id: 125 });
+    sendEvent(controller, 'related-queries', { related_queries: finalRelated });
+
+    const newThreadId = await saveChat(userId, threadId, query, finalResponse, uniqueSources, uniqueImages);
+    sendEvent(controller, 'stream-end', { thread_id: newThreadId });
 }
 
 
@@ -247,7 +256,9 @@ import { REACT_AGENT_PROMPT } from '@/lib/agent/prompts';
 async function handleAgenticMode(
     query: string,
     history: any[],
-    controller: ReadableStreamDefaultController
+    controller: ReadableStreamDefaultController,
+    userId: string,
+    threadId?: number
 ) {
     sendEvent(controller, 'begin-stream', { event_type: 'begin-stream', query });
 
@@ -344,23 +355,27 @@ async function handleAgenticMode(
 
     const related = await generateRelatedQuestions(currentQuery, finalAnswer);
     sendEvent(controller, 'related-queries', { related_queries: related });
-    sendEvent(controller, 'stream-end', { thread_id: 125 });
+
+    // Save Agentic Chat
+    const newThreadId = await saveChat(userId, threadId, query, finalAnswer, uniqueSources, []);
+    sendEvent(controller, 'stream-end', { thread_id: newThreadId });
 }
 
 export async function POST(req: NextRequest) {
     try {
         const payload: ChatRequest = await req.json();
-        const { query, history, model, pro_search, focusMode, agentic } = payload;
+        const { query, history, model, pro_search, focusMode, agentic, thread_id } = payload;
+        const userId = req.headers.get('x-user-id') || 'anonymous';
 
         const stream = new ReadableStream({
             async start(controller) {
                 try {
                     if (agentic) {
-                        await handleAgenticMode(query, history, controller);
+                        await handleAgenticMode(query, history, controller, userId, thread_id);
                     } else if (pro_search) {
-                        await handleExpertMode(query, history, focusMode, controller);
+                        await handleExpertMode(query, history, focusMode, controller, userId, thread_id);
                     } else {
-                        await handleBasicMode(query, history, model, focusMode, controller);
+                        await handleBasicMode(query, history, model, focusMode, controller, userId, thread_id);
                     }
                     controller.close();
                 } catch (e: any) {
