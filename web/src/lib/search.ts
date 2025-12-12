@@ -185,6 +185,14 @@ async function searchGoogleScraper(query: string): Promise<SearchResult[]> {
 
 // Custom Image Scraper with Headers to avoid 429s/Blocking
 async function searchImages(query: string): Promise<string[]> {
+    let images: string[] = [];
+
+    // Strategy 1: Serper Images (if enabled)
+    if (SEARCH_PROVIDER === 'serper' && SEARCH_API_KEY) {
+        images = await searchSerperImages(query);
+        if (images.length > 0) return images;
+    }
+
     try {
         // Try Bing Images first (often easier to scrape than Google)
         const res = await fetch(`https://www.bing.com/images/search?q=${encodeURIComponent(query)}&first=1`, {
@@ -197,7 +205,6 @@ async function searchImages(query: string): Promise<string[]> {
         if (!res.ok) return [];
 
         const html = await res.text();
-        const images: string[] = [];
 
         // Bing "murl" regex (Metadata URL)
         const regex = /"murl":"([^"]+)"/g;
@@ -226,10 +233,33 @@ async function searchImages(query: string): Promise<string[]> {
     }
 }
 
+async function searchSerperImages(query: string): Promise<string[]> {
+    try {
+        const res = await fetch('https://google.serper.dev/images', {
+            method: 'POST',
+            headers: {
+                'X-API-KEY': SEARCH_API_KEY!,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ q: query })
+        });
+
+        if (!res.ok) throw new Error(`Serper images error: ${res.statusText}`);
+
+        const data = await res.json();
+        return (data.images || []).map((img: any) => img.imageUrl).filter((url: string) => url);
+    } catch (e) {
+        console.error("Serper image search failed", e);
+        return [];
+    }
+}
+
+import TurndownService from 'turndown';
+
 export async function fetchAndProcessUrl(url: string): Promise<string> {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
         const res = await fetch(url, {
             signal: controller.signal,
@@ -253,17 +283,30 @@ export async function fetchAndProcessUrl(url: string): Promise<string> {
         const $ = cheerio.load(html);
 
         // Remove unwanted elements
-        $('script, style, noscript, header, footer, nav, meta, svg, button').remove();
+        $('script, style, noscript, header, footer, nav, meta, svg, button, iframe, .ad, .ads, .advertisement').remove();
 
-        // Extract text
-        let text = $('body').text();
-        text = text.replace(/\s+/g, ' ').trim();
+        // Convert to Markdown
+        const turndownService = new TurndownService({
+            headingStyle: 'atx',
+            codeBlockStyle: 'fenced',
+            bulletListMarker: '-'
+        });
 
-        if (text.length < 100) {
-            console.warn(`Fetched content for ${url} is too short (${text.length} chars). Possible blockage.`);
+        // Remove text from elements we extracted but didn't want? 
+        // Cheerio removal handles DOM. Turndown handles converting what's left.
+        // Let's pass the body html
+        const bodyHtml = $('body').html() || "";
+
+        let markdown = turndownService.turndown(bodyHtml);
+
+        // Clean up excessive newlines
+        markdown = markdown.replace(/\n{3,}/g, '\n\n').trim();
+
+        if (markdown.length < 50) {
+            console.warn(`Fetched content for ${url} is too short. Possible blockage.`);
         }
 
-        return text.slice(0, 5000); // Increased slice limit
+        return markdown.slice(0, 15000); // Increased slice limit for markdown
     } catch (e: any) {
         console.error(`Fetch error for ${url}:`, e.message);
         return "";

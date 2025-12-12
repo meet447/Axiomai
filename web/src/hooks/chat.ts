@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AgentQueryPlanStream,
   AgentReadResultsStream,
@@ -21,7 +21,11 @@ import {
   TextChunkStream,
   AgentActionStream,
 } from "../../generated";
-import Error from "next/error";
+import { createParser } from "eventsource-parser";
+
+
+
+
 import {
   fetchEventSource,
   FetchEventSourceInit,
@@ -73,6 +77,7 @@ const convertToChatRequest = (query: string, history: ChatMessage[]) => {
 };
 
 export const useChat = () => {
+  const queryClient = useQueryClient();
   const { addMessage, messages, threadId, setThreadId } = useChatStore();
   const { model, proMode, agenticMode } = useConfigStore();
 
@@ -213,48 +218,100 @@ export const useChat = () => {
     });
   };
 
+
   const { mutateAsync: chat } = useMutation<void, Error, ChatRequest>({
     retry: false,
+    onSuccess: () => {
+      // Invalidate history query to update sidebar
+      queryClient.invalidateQueries({ queryKey: ["chatHistory"] });
+    },
     mutationFn: async (request) => {
       const state: ChatMessage = {
         role: MessageRole.ASSISTANT,
         content: "",
-        sources: [],
-        related_queries: [],
-        images: [],
-        agent_actions: [],
+        related_queries: null,
+        sources: null,
+        images: null,
+        is_error_message: false,
         agent_response: null,
+        agent_actions: []
       };
 
-      addMessage({ role: MessageRole.USER, content: request.query });
-      setIsStreamingProSearch(proMode);
+      setStreamingMessage(state);
 
-      // Construct the full request with store values
-      const req: ChatRequest = {
-        ...request,
-        thread_id: threadId,
-        model: model as ChatModel,
-        pro_search: proMode,
-        agentic: agenticMode,
-      };
-
-      await streamChat({
-        request: req,
-        onMessage: (event) => {
-          if (!event.data) return;
-          const eventItem: ChatResponseEvent = JSON.parse(event.data);
-          handleEvent(eventItem, state);
+      const response = await fetch(`${BASE_URL}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": getUserId(),
         },
+        body: JSON.stringify(request),
       });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      // ... rest of the stream handling
+      if (!response.body) return;
+      const reader = response.body.getReader();
+
+      const parser = createParser({
+        onEvent: (event: any) => {
+          if (event.type === 'event') {
+            try {
+              handleEvent(JSON.parse(event.data), state);
+            } catch (e) {
+              console.error("Event parsing error", e);
+            }
+          }
+        }
+      });
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parser.feed(new TextDecoder().decode(value));
+      }
     },
   });
 
-  const handleSend = async (query: string) => {
-    await chat(convertToChatRequest(query, messages));
+  const handleSend = async (query: string, options?: Partial<ChatRequest>) => {
+    // ... existing logic to add user message ...
+    const userMsg: ChatMessage = {
+      role: MessageRole.USER,
+      content: query,
+      related_queries: null,
+      sources: null,
+      images: null,
+      is_error_message: false,
+      agent_response: null
+    };
+
+    // Optimistic update
+    addMessage(userMsg);
+
+    // Prepare history
+    const history = messages.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }));
+
+    await chat({
+      query,
+      history,
+      model: model as any, // default from store
+      pro_search: proMode, // default from store
+      focusMode: 'web', // default
+      agentic: agenticMode, // default from store
+      thread_id: threadId ?? undefined,
+      ...options // Override with custom options
+    });
   };
 
   return {
     handleSend,
+    messages,
     streamingMessage,
     isStreamingMessage,
     isStreamingProSearch,

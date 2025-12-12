@@ -83,6 +83,8 @@ export type ChatRequest = {
   model?: ChatModel;
   pro_search?: boolean;
   agentic?: boolean;
+  saveToHistory?: boolean;
+  focusMode?: string;
 };
 
 export type ChatResponseEvent = {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useChatHistory } from "@/hooks/history";
-import { Plus, Library, Newspaper, Menu, ChevronLeft, ChevronRight, MessageSquare, History } from "lucide-react";
+import { useChatHistory, useDeleteChat } from "@/hooks/history";
+import { Plus, Library, Newspaper, Menu, ChevronLeft, ChevronRight, MessageSquare, History, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { useState, useEffect } from "react";
@@ -19,8 +19,10 @@ import { useChatStore } from "@/stores";
 
 export function Sidebar() {
     const { data: history } = useChatHistory();
+    const { mutate: deleteChat } = useDeleteChat();
     const { setMessages, setThreadId } = useChatStore();
     const pathname = usePathname();
+    const router = useRouter();
     const [open, setOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
@@ -41,6 +43,7 @@ export function Sidebar() {
         setThreadId(null);
         setMessages([]);
         setOpen(false);
+        router.push('/');
     };
 
     const NavItem = ({ href, icon: Icon, label, active }: { href: string; icon: any; label: string; active: boolean }) => {
@@ -96,22 +99,18 @@ export function Sidebar() {
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button asChild variant="default" size="icon" className="h-9 w-9">
-                                    <Link href="/" onClick={handleNewChat} className="flex items-center justify-center">
-                                        <Plus className="w-4 h-4" />
-                                        <span className="sr-only">New Chat</span>
-                                    </Link>
+                                <Button variant="default" size="icon" className="h-9 w-9" onClick={handleNewChat}>
+                                    <Plus className="w-4 h-4" />
+                                    <span className="sr-only">New Chat</span>
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent side="right">New Chat</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 ) : (
-                    <Button asChild className="w-full justify-start space-x-2 shadow-sm font-semibold h-10 px-2">
-                        <Link href="/" onClick={handleNewChat}>
-                            <Plus className="w-4 h-4" />
-                            <span>New Chat</span>
-                        </Link>
+                    <Button className="w-full justify-start space-x-2 shadow-sm font-semibold h-10 px-2" onClick={handleNewChat}>
+                        <Plus className="w-4 h-4" />
+                        <span>New Chat</span>
                     </Button>
                 )}
             </div>
@@ -129,11 +128,29 @@ export function Sidebar() {
                         <History className="w-3 h-3" /> Recent
                     </h3>
                     {history?.slice(0, 5).map((chat) => (
-                        <Link key={chat.id} href={`/search/${chat.id}`} onClick={() => setOpen(false)}>
-                            <Button variant="ghost" className={cn("w-full justify-start text-xs h-auto py-2 whitespace-normal text-left px-2", pathname === `/search/${chat.id}` && "bg-muted")}>
-                                <span className="line-clamp-1">{chat.title}</span>
-                            </Button>
-                        </Link>
+                        <div key={chat.id} className="group flex items-center pr-2 relative">
+                            <Link href={`/search/${chat.id}`} onClick={() => setOpen(false)} className="flex-1 min-w-0">
+                                <Button variant="ghost" className={cn("w-full justify-start text-xs h-auto py-2 whitespace-normal text-left px-2", pathname === `/search/${chat.id}` && "bg-muted")}>
+                                    <span className="line-clamp-1">{chat.title}</span>
+                                </Button>
+                            </Link>
+                            <div className="absolute right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (confirm("Delete this chat?")) {
+                                            deleteChat(chat.id);
+                                        }
+                                    }}
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                </Button>
+                            </div>
+                        </div>
                     ))}
                 </div>
             )}

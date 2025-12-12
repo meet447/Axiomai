@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { env } from "@/env.mjs";
 import { ChatSnapshot } from "../../generated";
 
@@ -23,5 +23,21 @@ export const useChatHistory = () => {
     queryKey: ["chatHistory"],
     queryFn: fetchChatHistory,
     retry: false,
+  });
+};
+
+export const useDeleteChat = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (threadId: number) => {
+      const response = await fetch(`${BASE_URL}/thread/${threadId}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': getUserId() }
+      });
+      if (!response.ok) throw new Error("Failed to delete chat");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["chatHistory"] });
+    }
   });
 };

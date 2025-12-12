@@ -20,6 +20,7 @@ interface ChatRequest {
     pro_search: boolean;
     focusMode: string;
     agentic: boolean;
+    saveToHistory?: boolean;
 }
 
 function formatContext(results: SearchResult[]): string {
@@ -54,7 +55,8 @@ async function handleBasicMode(
     focusMode: string,
     controller: ReadableStreamDefaultController,
     userId: string,
-    threadId?: number
+    threadId?: number,
+    saveToHistory: boolean = true
 ) {
     let currentQuery = query;
 
@@ -63,7 +65,6 @@ async function handleBasicMode(
 
     // 2. Rephrase if history exists
     if (history && history.length > 0) {
-        // ... (rephrase logic same)
         const rephrasedStream = await openai.chat.completions.create({
             model: MODELS.fast,
             messages: [{ role: 'user', content: HISTORY_QUERY_REPHRASE(JSON.stringify(history), currentQuery) }],
@@ -109,8 +110,11 @@ async function handleBasicMode(
 
     // 7. Final Message & End
     sendEvent(controller, 'final-message', { message: fullResponse });
-    const newThreadId = await saveChat(userId, threadId, query, fullResponse, searchResults.results, searchResults.images);
-    sendEvent(controller, 'stream-end', { thread_id: newThreadId });
+    let newThreadId = threadId;
+    if (saveToHistory) {
+        newThreadId = await saveChat(userId, threadId, query, fullResponse, searchResults.results, searchResults.images);
+    }
+    sendEvent(controller, 'stream-end', { thread_id: newThreadId ?? -1 });
 }
 
 async function handleExpertMode(
@@ -119,7 +123,8 @@ async function handleExpertMode(
     focusMode: string,
     controller: ReadableStreamDefaultController,
     userId: string,
-    threadId?: number
+    threadId?: number,
+    saveToHistory: boolean = true
 ) {
     // ... setup
     let currentQuery = query;
@@ -182,11 +187,12 @@ async function handleExpertMode(
 
         const allResults: SearchResult[] = [];
         const allImages: string[] = [];
-
+        // eslint-disable-next-line
         searchResults.forEach(res => {
             allResults.push(...res.results);
             allImages.push(...res.images);
         });
+
 
         // Store
         stepSources[step.id] = allResults; // Should filter unique urls if crucial
@@ -244,8 +250,13 @@ async function handleExpertMode(
 
     sendEvent(controller, 'related-queries', { related_queries: finalRelated });
 
-    const newThreadId = await saveChat(userId, threadId, query, finalResponse, uniqueSources, uniqueImages);
-    sendEvent(controller, 'stream-end', { thread_id: newThreadId });
+    sendEvent(controller, 'related-queries', { related_queries: finalRelated });
+
+    let newThreadId = threadId;
+    if (saveToHistory) {
+        newThreadId = await saveChat(userId, threadId, query, finalResponse, uniqueSources, uniqueImages);
+    }
+    sendEvent(controller, 'stream-end', { thread_id: newThreadId ?? -1 });
 }
 
 
@@ -258,7 +269,8 @@ async function handleAgenticMode(
     history: any[],
     controller: ReadableStreamDefaultController,
     userId: string,
-    threadId?: number
+    threadId?: number,
+    saveToHistory: boolean = true
 ) {
     sendEvent(controller, 'begin-stream', { event_type: 'begin-stream', query });
 
@@ -287,22 +299,44 @@ async function handleAgenticMode(
         const historyLog = agentHistory.join('\n');
 
         // 1. Think / Decide Action
-        const prompt = REACT_AGENT_PROMPT(currentQuery, historyLog);
-        const completion = await openai.chat.completions.create({
-            model: MODELS.powerful, // Use powerful model for reasoning
-            messages: [{ role: 'user', content: prompt }],
-            stream: false,
-            response_format: { type: "json_object" } // Force JSON if supported, or rely on prompt
-        });
-
-        const text = completion.choices[0].message.content || "{}";
+        // 1. Think / Decide Action
         let action: any = {};
-        try {
-            action = JSON.parse(text);
-        } catch (e) {
-            // regex fallback
-            const match = text.match(/\{[\s\S]*\}/);
-            if (match) action = JSON.parse(match[0]);
+        let attempts = 0;
+
+        while (attempts < 3) {
+            attempts++;
+            try {
+                const prompt = REACT_AGENT_PROMPT(currentQuery, historyLog + (attempts > 1 ? `\n\n(System Note: Your previous attempt was invalid JSON. Please output VALID JSON only.)` : ""));
+
+                const completion = await openai.chat.completions.create({
+                    model: MODELS.powerful,
+                    messages: [{ role: 'user', content: prompt }],
+                    stream: false,
+                });
+
+                const text = completion.choices[0].message.content || "{}";
+
+                // Try parsing
+                try {
+                    action = JSON.parse(text);
+                } catch (e) {
+                    try {
+                        let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                        action = JSON.parse(cleanText);
+                    } catch (e2) {
+                        const match = text.match(/\{[\s\S]*\}/);
+                        if (match) action = JSON.parse(match[0]);
+                    }
+                }
+
+                // Validate
+                if (action.action && (action.action === 'search' || action.action === 'visit' || action.action === 'answer')) {
+                    break;
+                }
+            } catch (e) {
+                console.error(`Agent attempt ${attempts} failed:`, e);
+            }
+            // If we are here, we failed. Retry.
         }
 
         // 2. Stream Action to UI
@@ -357,25 +391,29 @@ async function handleAgenticMode(
     sendEvent(controller, 'related-queries', { related_queries: related });
 
     // Save Agentic Chat
-    const newThreadId = await saveChat(userId, threadId, query, finalAnswer, uniqueSources, []);
-    sendEvent(controller, 'stream-end', { thread_id: newThreadId });
+    // Save Agentic Chat
+    let newThreadId = threadId;
+    if (saveToHistory) {
+        newThreadId = await saveChat(userId, threadId, query, finalAnswer, uniqueSources, []);
+    }
+    sendEvent(controller, 'stream-end', { thread_id: newThreadId ?? -1 });
 }
 
 export async function POST(req: NextRequest) {
     try {
         const payload: ChatRequest = await req.json();
-        const { query, history, model, pro_search, focusMode, agentic, thread_id } = payload;
+        const { query, history, model, pro_search, focusMode, agentic, thread_id, saveToHistory = true } = payload;
         const userId = req.headers.get('x-user-id') || 'anonymous';
 
         const stream = new ReadableStream({
             async start(controller) {
                 try {
                     if (agentic) {
-                        await handleAgenticMode(query, history, controller, userId, thread_id);
+                        await handleAgenticMode(query, history, controller, userId, thread_id, saveToHistory);
                     } else if (pro_search) {
-                        await handleExpertMode(query, history, focusMode, controller, userId, thread_id);
+                        await handleExpertMode(query, history, focusMode, controller, userId, thread_id, saveToHistory);
                     } else {
-                        await handleBasicMode(query, history, model, focusMode, controller, userId, thread_id);
+                        await handleBasicMode(query, history, model, focusMode, controller, userId, thread_id, saveToHistory);
                     }
                     controller.close();
                 } catch (e: any) {
