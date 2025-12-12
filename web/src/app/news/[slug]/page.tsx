@@ -18,13 +18,19 @@ export default function NewsArticlePage({ params }: { params: { slug: string } }
     // We reuse the existing chat hook but only for one "interaction"
     const { handleSend, streamingMessage, isStreamingMessage } = useChat();
 
-    // Local state to hold the 'article' content
-    const [articleContent, setArticleContent] = useState("");
-    const [isLoading, setIsLoading] = useState(true);
+    // Track if we have initiated the request
+    const [hasStarted, setHasStarted] = useState(false);
+
+    // Derived state
+    const content = streamingMessage?.content || "";
+    // Loading is true if we started but no content has arrived yet
+    const isLoading = hasStarted && !content;
 
     useEffect(() => {
         if (!hasFetched.current && title) {
             hasFetched.current = true;
+            setHasStarted(true);
+
             // Trigger the agent with a specific instruction to write an article
             handleSend(`Research and write a comprehensive article about: "${title}". 
             Format it as a professional news story with an introduction, detailed body paragraphs, and conclusion. 
@@ -35,15 +41,8 @@ export default function NewsArticlePage({ params }: { params: { slug: string } }
         }
     }, [title, handleSend]);
 
-    useEffect(() => {
-        if (streamingMessage?.content) {
-            setArticleContent(streamingMessage.content);
-            setIsLoading(false);
-        }
-    }, [streamingMessage]);
-
     // Simple word count / read time estimator
-    const wordCount = articleContent.split(/\s+/).length;
+    const wordCount = content.split(/\s+/).length;
     const readTime = Math.ceil(wordCount / 200);
 
     return (
@@ -93,7 +92,7 @@ export default function NewsArticlePage({ params }: { params: { slug: string } }
 
                 {/* Article Content */}
                 <article className="prose dark:prose-invert prose-lg max-w-none prose-headings:font-serif prose-headings:font-medium">
-                    {isLoading && !articleContent ? (
+                    {isLoading ? (
                         <div className="space-y-4">
                             <Skeleton className="h-6 w-full" />
                             <Skeleton className="h-6 w-[90%]" />
@@ -116,13 +115,13 @@ export default function NewsArticlePage({ params }: { params: { slug: string } }
                                 }}
                                 rehypePlugins={[rehypeRaw]}
                             >
-                                {articleContent}
+                                {content}
                             </MemoizedReactMarkdown>
                         </div>
                     )}
 
                     {/* Streaming Indicator */}
-                    {isStreamingMessage && (
+                    {isStreamingMessage && !isLoading && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mt-4 animate-pulse">
                             <span className="h-2 w-2 rounded-full bg-primary" />
                             Generating article...

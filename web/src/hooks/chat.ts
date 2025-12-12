@@ -20,6 +20,7 @@ import {
   StreamEvent,
   TextChunkStream,
   AgentActionStream,
+  FinalResponseStream,
 } from "../../generated";
 import { createParser } from "eventsource-parser";
 
@@ -109,7 +110,9 @@ export const useChat = () => {
         state.images = data.images ?? [];
         break;
       case StreamEvent.TEXT_CHUNK:
-        state.content += (eventItem.data as TextChunkStream).text;
+        const chunkText = (eventItem.data as TextChunkStream).text;
+        // console.log("Received chunk:", chunkText);
+        state.content += chunkText;
 
         if (!state.agent_response) {
           break;
@@ -127,6 +130,10 @@ export const useChat = () => {
       case StreamEvent.RELATED_QUERIES:
         state.related_queries =
           (eventItem.data as RelatedQueriesStream).related_queries ?? [];
+        break;
+      case StreamEvent.FINAL_RESPONSE: // Handle final response update
+        const finalMsg = (eventItem.data as FinalResponseStream).message;
+        if (finalMsg) state.content = finalMsg;
         break;
       case StreamEvent.STREAM_END:
         const endData = eventItem.data as StreamEndStream;
@@ -260,7 +267,9 @@ export const useChat = () => {
         onEvent: (event: any) => {
           if (event.type === 'event') {
             try {
-              handleEvent(JSON.parse(event.data), state);
+              const data = JSON.parse(event.data);
+              // console.log("Parsed Event:", data.event);
+              handleEvent(data, state);
             } catch (e) {
               console.error("Event parsing error", e);
             }
