@@ -128,7 +128,15 @@ export const ProSearchRender = ({
       .filter((step) => step.status === AgentSearchStepStatus.CURRENT)
       .map((step) => step.index.toString());
 
-    setAccordionValues(currentSteps);
+    // Only update if the values actually changed to prevent infinite loops
+    setAccordionValues((prev) => {
+      const prevSorted = [...prev].sort().join(',');
+      const currentSorted = [...currentSteps].sort().join(',');
+      if (prevSorted !== currentSorted) {
+        return currentSteps;
+      }
+      return prev;
+    });
   }, [streamingProResponse]);
 
   if (!streamingProResponse?.steps_details) {

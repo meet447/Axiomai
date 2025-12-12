@@ -89,18 +89,22 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
               onRelatedQuestionSelect={handleSend}
             />
             <div ref={messageBottomRef} className="h-0" />
-            <div className="fixed bottom-12 left-1/2 -translate-x-1/2 w-full max-w-screen-md px-4 md:px-8">
-              <AskInput isFollowingUp sendMessage={handleSend} />
+            <div className="fixed bottom-8 left-0 right-0 md:left-16 flex justify-center px-4 z-10">
+              <div className="w-full max-w-2xl">
+                <AskInput isFollowingUp sendMessage={handleSend} />
+              </div>
             </div>
           </div>
         )
       ) : (
-        <div className="w-full flex flex-col justify-center items-center">
+        <div className="w-full flex flex-col justify-center items-center px-4">
           <div className="flex items-center justify-center mb-8">
             <span className="text-3xl">Ask anything</span>
           </div>
-          <AskInput sendMessage={handleSend} />
-          <div className="w-full flex flex-row px-3 justify-between space-y-2 pt-1">
+          <div className="w-full max-w-2xl">
+            <AskInput sendMessage={handleSend} />
+          </div>
+          <div className="w-full max-w-2xl flex flex-row justify-between space-y-2 pt-1">
             <StarterQuestionsList handleSend={handleSend} />
           </div>
         </div>
