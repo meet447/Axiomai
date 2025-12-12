@@ -30,6 +30,9 @@ export const useChatStore = () =>
     setMessages: state.setMessages,
     threadId: state.threadId,
     setThreadId: state.setThreadId,
+    guestMessageCount: state.guestMessageCount,
+    incrementGuestMessageCount: state.incrementGuestMessageCount,
+    resetGuestMessageCount: state.resetGuestMessageCount,
   }));
 
 export const useConfigStore = () =>

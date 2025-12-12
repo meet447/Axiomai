@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/tooltip";
 
 import { useChatStore } from "@/stores";
+import { UserMenu } from "./user-menu";
 
 export function Sidebar() {
     const { data: history } = useChatHistory();
@@ -155,11 +156,10 @@ export function Sidebar() {
                 </div>
             )}
 
-            {isCollapsed && (
-                <div className="mt-auto flex flex-col gap-2 opacity-50">
-                    <History className="w-4 h-4 mx-auto" />
-                </div>
-            )}
+            {/* User Menu at Bottom */}
+            <div className={cn("mt-auto pt-4 border-t", isCollapsed ? "w-full flex justify-center" : "")}>
+                <UserMenu collapsed={isCollapsed} />
+            </div>
 
         </div>
     );

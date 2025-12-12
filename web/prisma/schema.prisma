@@ -8,10 +8,16 @@ generator client {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  threads   Thread[]
+  id         String   @id @default(uuid())
+  email      String   @unique
+  password   String   // Hashed with bcrypt
+  name       String?
+  profession String?
+  interests  String[] // Array of topic slugs
+  onboarded  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  threads    Thread[]
   collections Collection[]
 }
 

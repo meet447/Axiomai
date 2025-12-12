@@ -13,15 +13,16 @@ export async function saveChat(
         let currentThreadId = threadId;
 
         if (!currentThreadId) {
+            // Check if user exists (for authenticated users)
+            const existingUser = await prisma.user.findUnique({
+                where: { id: userId }
+            });
+
             const thread = await prisma.thread.create({
                 data: {
                     title: query.slice(0, 50),
-                    user: {
-                        connectOrCreate: {
-                            where: { id: userId },
-                            create: { id: userId }
-                        }
-                    },
+                    // Only connect user if they exist (authenticated users)
+                    ...(existingUser ? { user: { connect: { id: userId } } } : { userId: 'anonymous' }),
                     messages: {
                         create: {
                             role: 'user',

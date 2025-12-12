@@ -36,6 +36,7 @@ import { useConfigStore, useChatStore } from "@/stores";
 import { env } from "../env.mjs";
 import { useRouter } from "next/navigation";
 import { getUserId } from "@/lib/user";
+import { useSession } from "next-auth/react";
 
 const BASE_URL = env.NEXT_PUBLIC_API_URL;
 
@@ -81,6 +82,8 @@ export const useChat = () => {
   const queryClient = useQueryClient();
   const { addMessage, messages, threadId, setThreadId } = useChatStore();
   const { model, proMode, agenticMode } = useConfigStore();
+  const { status } = useSession();
+  const isAuthenticated = status === "authenticated";
 
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(
     null,
@@ -295,6 +298,7 @@ export const useChat = () => {
       focusMode: 'web', // default
       agentic: agenticMode, // default from store
       thread_id: threadId ?? undefined,
+      saveToHistory: isAuthenticated, // Only save for authenticated users
       ...options // Override with custom options
     });
   };

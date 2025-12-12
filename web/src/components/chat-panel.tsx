@@ -5,12 +5,16 @@ import { useChatStore } from "@/stores";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AskInput } from "./ask-input";
+import { useSession } from "next-auth/react";
 
 import { useChatThread } from "@/hooks/threads";
 import { LoaderIcon } from "lucide-react";
 import { MessageRole } from "../../generated";
 import MessagesList from "./messages-list";
 import { StarterQuestionsList } from "./starter-questions";
+import { SignUpModal } from "./sign-up-modal";
+
+const GUEST_MESSAGE_LIMIT = 5;
 
 const useAutoScroll = (ref: React.RefObject<HTMLDivElement>) => {
   const { messages } = useChatStore();
@@ -35,21 +39,41 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
   const searchParams = useSearchParams();
   const queryMessage = searchParams.get("q");
   const hasRun = useRef(false);
+  const { data: session, status } = useSession();
 
   const {
-    handleSend,
+    handleSend: originalHandleSend,
     streamingMessage,
     isStreamingMessage,
     isStreamingProSearch,
   } = useChat();
-  const { messages, setMessages, setThreadId } = useChatStore();
+  const { messages, setMessages, setThreadId, guestMessageCount, incrementGuestMessageCount } = useChatStore();
   const { data: thread, isLoading, error } = useChatThread(threadId);
+
+  const [showSignUpModal, setShowSignUpModal] = useState(false);
+  const [signUpReason, setSignUpReason] = useState<"limit" | "expert" | "history">("limit");
 
   const messageBottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  const isGuest = status !== "authenticated";
+
   useAutoScroll(messageBottomRef);
   useAutoFocus(inputRef);
+
+  // Wrapped handleSend with guest limits
+  const handleSend = (message: string) => {
+    if (isGuest) {
+      // Check if guest has exceeded limit
+      if (guestMessageCount >= GUEST_MESSAGE_LIMIT) {
+        setSignUpReason("limit");
+        setShowSignUpModal(true);
+        return;
+      }
+      incrementGuestMessageCount();
+    }
+    originalHandleSend(message);
+  };
 
   useEffect(() => {
     if (queryMessage && !hasRun.current) {
@@ -74,6 +98,11 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
 
   return (
     <>
+      <SignUpModal
+        open={showSignUpModal}
+        onOpenChange={setShowSignUpModal}
+        reason={signUpReason}
+      />
       {messages.length > 0 || threadId ? (
         isLoading ? (
           <div className="w-full flex justify-center items-center">
@@ -92,6 +121,17 @@ export const ChatPanel = ({ threadId }: { threadId?: number }) => {
             <div className="fixed bottom-8 left-0 right-0 md:left-16 flex justify-center px-4 z-10">
               <div className="w-full max-w-2xl">
                 <AskInput isFollowingUp sendMessage={handleSend} />
+                {isGuest && (
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    {GUEST_MESSAGE_LIMIT - guestMessageCount} messages remaining •{" "}
+                    <button
+                      onClick={() => setShowSignUpModal(true)}
+                      className="text-primary hover:underline"
+                    >
+                      Sign up for unlimited
+                    </button>
+                  </p>
+                )}
               </div>
             </div>
           </div>
