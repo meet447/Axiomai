@@ -27,7 +27,7 @@ export const FocusSelector = () => {
                     className="h-8 gap-2 text-muted-foreground hover:text-foreground border border-transparent hover:border-border transition-all"
                 >
                     <Icon className="h-4 w-4" />
-                    <span className="text-xs font-medium">{currentMode.name}</span>
+                    <span className="text-xs font-medium hidden sm:inline">{currentMode.name}</span>
                     <ChevronDown className="h-3 w-3 opacity-50" />
                 </Button>
             </DropdownMenuTrigger>

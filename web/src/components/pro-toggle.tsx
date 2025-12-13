@@ -56,7 +56,7 @@ const ProToggle = () => {
             />
             <span
               className={cn(
-                "font-medium text-sm transition-all",
+                "font-medium text-sm transition-all hidden sm:inline",
                 proMode ? "text-tint " : "text-gray-500 group-hover:text-primary",
               )}
             >

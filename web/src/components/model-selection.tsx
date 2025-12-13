@@ -86,7 +86,7 @@ export function ModelSelection() {
         <SelectValue>
           <div className="flex items-center space-x-2">
             {selectedModel.smallIcon}
-            <span className="font-semibold">{selectedModel.name}</span>
+            <span className="font-semibold hidden sm:inline">{selectedModel.name}</span>
           </div>
         </SelectValue>
       </SelectTrigger>

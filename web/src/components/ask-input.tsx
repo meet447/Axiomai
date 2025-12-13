@@ -57,7 +57,7 @@ const FollowingUpInput = ({
 }) => {
   return (
     <div className="w-full flex flex-row rounded-full focus:outline-none px-2 py-1 bg-card border-2 items-center ">
-      <div className="w-full">
+      <div className="flex-1 min-w-0">
         <TextareaAutosize
           className="w-full bg-transparent text-md resize-none focus:outline-none p-2"
           placeholder="Ask anything..."

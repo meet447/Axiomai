@@ -166,7 +166,7 @@ export function Sidebar() {
 
     if (isMobile) {
         return (
-            <div className="md:hidden fixed top-4 left-4 z-50">
+            <div className="md:hidden fixed top-4 left-4 z-[60]">
                 <Sheet open={open} onOpenChange={setOpen}>
                     <SheetTrigger asChild>
                         <Button variant="ghost" size="icon">

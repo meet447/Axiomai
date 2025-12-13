@@ -191,9 +191,9 @@ export const MessageComponentSkeleton = () => {
     <>
       <Skeleton className="w-full py-4 bg-card">
         <div className="flex flex-col gap-4">
-          <Skeleton className="mx-5 h-2 bg-primary/30" />
-          <Skeleton className="mx-5 h-2 bg-primary/30 mr-20" />
-          <Skeleton className="mx-5 h-2 bg-primary/30 mr-40" />
+          <Skeleton className="mx-2 md:mx-5 h-2 bg-primary/30" />
+          <Skeleton className="mx-2 md:mx-5 h-2 bg-primary/30 mr-20" />
+          <Skeleton className="mx-2 md:mx-5 h-2 bg-primary/30 mr-40" />
         </div>
       </Skeleton>
     </>
